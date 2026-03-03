@@ -248,4 +248,3 @@ PERMANOVA_repeat_measures_core <- function(
   if (na.rm) ad$na.removed <- na.removed
   ad
 }
-``
