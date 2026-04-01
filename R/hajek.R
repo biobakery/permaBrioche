@@ -1,14 +1,14 @@
-#' Hájek Estimator for Repeated Measures (Subject-Respecting Split)
+#' Hajek Estimator for Repeated Measures (Subject-Respecting Split)
 #'
 #' Implements a subject-level train/test split for a binary covariate and computes a
-#' Hájek estimator on the test set. The distance-like outcome \eqn{Y} is constructed as
-#' the (Bray–Curtis or Euclidean) distance of each test sample to the centroid of group 1
+#' Hajek estimator on the test set. The distance-like outcome \eqn{Y} is constructed as
+#' the (Bray-Curtis or Euclidean) distance of each test sample to the centroid of group 1
 #' computed in the training set. Two core engines are provided:
 #' (1) a constant-propensity version and (2) a logistic-regression propensity version.
 #'
 #' @param formula A model formula \code{D ~ X1 + X2 + ...}. \code{D} can be a
 #'   \code{\link{dist}} object (it is checked for alignment but not used in the
-#'   Hájek computation).
+#'   Hajek computation).
 #' @param data A \code{data.frame} with rownames matching \code{bugs} and columns for
 #'   the RHS variables and the \code{blocking_variable}.
 #' @param bugs A \code{matrix} or \code{data.frame} with features (e.g., taxa) in
@@ -23,7 +23,7 @@
 #'
 #' @return A list with
 #' \itemize{
-#'   \item \code{observed}: observed Hájek estimate on the test set
+#'   \item \code{observed}: observed Hajek estimate on the test set
 #'   \item \code{null_dist}: vector of valid null estimates (NAs removed)
 #'   \item \code{ratio}: \code{|observed / mean(null)|}
 #'   \item \code{z_score}: \code{(observed - mean(null)) / sd(null)}
@@ -32,7 +32,7 @@
 #'
 #' @details
 #' The subject-level split ensures no leakage: centroids are computed on train subjects,
-#' test outcomes are evaluated against that centroid, and the Hájek estimator is computed
+#' test outcomes are evaluated against that centroid, and the Hajek estimator is computed
 #' on test samples only. The permutation null respects subject blocking (via
 #' \code{permute::how(blocks=...)}).
 #'
@@ -74,8 +74,11 @@
 #'                         method = "euclidean")
 #' }
 #'
-#' @importFrom stats as.formula glm predict var
-#' @importFrom permute shuffle how
+#' @import vegan
+#' @import permute
+#' @importFrom stats as.formula aggregate binomial glm predict terms var
+#' @importFrom dplyr full_join filter summarise across mutate pull
+#' @importFrom tibble rownames_to_column
 #' @export
 hajek_repeat_measures <- function(formula,
                                   data,
@@ -110,7 +113,7 @@ hajek_repeat_measures <- function(formula,
   data_sub  <- data[, c(blocking_variable, rhs_terms), drop = FALSE]
 
   if (any(is.na(data_sub)))
-    stop("data must not have NA values for Hájek (or pre-filter before calling).")
+    stop("data must not have NA values for Hajek (or pre-filter before calling).")
 
   # --- 4. Define blocks (one level per subject / cluster) ---
   blocks <- as.factor(data_sub[[blocking_variable]])
@@ -133,7 +136,7 @@ hajek_repeat_measures <- function(formula,
     permute_within <- data.frame(row.names = rownames(data_sub))
   }
   if (ncol(block_data_full) == 0L) {
-    block_data_full <- as.data.frame(matrix(0, nrow = 1, ncol = 0))
+    block_data_full <- as.data.frame(matrix(0, nrow = length(levels(blocks)), ncol = 0))
     rownames(block_data_full) <- levels(blocks)
   }
 
@@ -178,7 +181,7 @@ hajek_repeat_measures <- function(formula,
   }
 
   heading <- sprintf(
-    paste("Hájek estimator with subject-level split",
+    paste("Hajek estimator with subject-level split",
           "Blocked by %s",
           "Number of permutations: %d\n", sep = "\n"),
     blocking_variable, permutations
@@ -273,8 +276,9 @@ hajek_repeat_measures_core_without_propensity <- function(D,
   observed_tau <- get_tau_hat(Ttest, Y, etest)
 
   # --- Permutation null ---
+  ctrl <- permute::how(blocks = blocks)
   null_taus <- replicate(permutations, {
-    within.i <- permute::shuffle(nrow(permute_within), control = permute::how(blocks = blocks))
+    within.i <- permute::shuffle(nrow(permute_within), control = ctrl)
     block.i  <- sample(seq_len(nrow(block_data)))
     mtdat_perm <- cbind(
       permute_within[within.i, , drop = FALSE],
@@ -423,8 +427,9 @@ hajek_repeat_measures_core <- function(D,
   observed_tau <- get_tau_hat(Ttest, Ytest, e_test)
 
   # Permutation null
+  ctrl <- permute::how(blocks = blocks)
   null_taus <- replicate(permutations, {
-    within.i <- permute::shuffle(nrow(permute_within), control = permute::how(blocks = blocks))
+    within.i <- permute::shuffle(nrow(permute_within), control = ctrl)
     block.i  <- sample(seq_len(nrow(block_data)))
 
     mtdat_perm <- as.data.frame(cbind(
@@ -476,9 +481,9 @@ hajek_repeat_measures_core <- function(D,
        pval = pval)
 }
 
-#' Hájek with Location and Dispersion (Subject-Respecting Split)
+#' Hajek with Location and Dispersion (Subject-Respecting Split)
 #'
-#' Computes (i) the Hájek total effect on a distance-like outcome to the group-1
+#' Computes (i) the Hajek total effect on a distance-like outcome to the group-1
 #' centroid and (ii) decompositions for location and dispersion in feature space,
 #' using a subject-level train/test split that prevents leakage.
 #'
@@ -495,7 +500,7 @@ hajek_repeat_measures_core <- function(D,
 #'
 #' @return A list with
 #' \itemize{
-#'   \item \code{observed_tau}: Hájek total effect (test set)
+#'   \item \code{observed_tau}: Hajek total effect (test set)
 #'   \item \code{observed_loc}: location component (difference of squared distances to centroid)
 #'   \item \code{observed_disp}: dispersion component (difference of traces of covariance)
 #' }
@@ -575,7 +580,7 @@ hajek_repeat_measures_loc_and_disp <- function(D,
   # Constant propensity score in test
   etest <- mean(Ttest)
 
-  # Hájek + location + dispersion
+  # Hajek + location + dispersion
   get_tau_hat <- function(T, Y, e) {
     treat_num <- sum(T * Y / e)
     treat_den <- sum(T / e)
@@ -609,4 +614,3 @@ hajek_repeat_measures_loc_and_disp <- function(D,
     observed_disp = tau_disp
   )
 }
-``

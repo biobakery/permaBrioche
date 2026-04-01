@@ -52,8 +52,11 @@
 #'
 #' @seealso \code{\link[vegan]{adonis2}}, \code{\link[permute]{how}}
 #'
-#' @importFrom stats as.formula
-#' @importFrom vegan adonis2
+#' @import vegan
+#' @import permute
+#' @importFrom stats as.formula aggregate binomial glm predict terms var
+#' @importFrom dplyr full_join filter summarise across mutate pull
+#' @importFrom tibble rownames_to_column
 #' @export
 PERMANOVA_repeat_measures <- function(formula,
                                       data,
@@ -102,7 +105,7 @@ PERMANOVA_repeat_measures <- function(formula,
     permute_within <- data.frame(row.names = rownames(data_sub))
   }
   if (ncol(block_data_full) == 0L) {
-    block_data_full <- as.data.frame(matrix(0, nrow = 1, ncol = 0))
+    block_data_full <- as.data.frame(matrix(0, nrow = length(levels(blocks)), ncol = 0))
     rownames(block_data_full) <- levels(blocks)
   }
 
@@ -226,8 +229,9 @@ PERMANOVA_repeat_measures_core <- function(
   R2    <- ad$R2; names(R2) <- rownames(ad)
 
   nullsamples <- matrix(NA_real_, nrow = length(R2), ncol = permutations)
+  ctrl <- permute::how(blocks = blocks)
   for (i in seq_len(permutations)) {
-    within.i <- permute::shuffle(nrow(permute_within), control = permute::how(blocks=blocks))
+    within.i <- permute::shuffle(nrow(permute_within), control = ctrl)
     block.i  <- sample(seq_len(nrow(block_data)))
     mtdat.i  <- cbind(
       permute_within[within.i,,drop=FALSE],

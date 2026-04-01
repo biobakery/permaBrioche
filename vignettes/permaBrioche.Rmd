@@ -1,0 +1,329 @@
+---
+title: "permabrioche: Repeated-Measures PERMANOVA on Simulated Data"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{permabrioche (simulated example)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  fig.align = "center"
+)
+set.seed(1)
+```
+
+```{r setup}
+library(permabrioche)
+library(vegan)
+library(dplyr)
+library(ggplot2)
+```
+
+# Overview
+
+This vignette illustrates how to use **permabrioche** on a simple simulated
+repeated-measures microbiome dataset. We:
+
+1. simulate subjects with multiple samples and microbial taxa,  
+2. construct a binary exposure that varies within subjects,  
+3. compare:
+   - a naïve PERMANOVA that ignores subject,
+   - a repeated-measures PERMANOVA using `PERMANOVA_repeat_measures()`,
+   - a Hájek-style test using `hajek_repeat_measures()`,
+4. run a small simulation to inspect type I error (null, no effect) and power
+   (alternative, spiked effect).
+
+# Simulated repeated-measures microbiome data
+
+We simulate:
+
+- `n_subj` subjects,
+- each with `m` repeated samples,
+- `p` taxa per sample,
+- log-normal abundances with a subject-specific random effect.
+
+```{r simulate-once}
+simulate_microbiome <- function(
+  n_subj      = 20,
+  m_per_subj  = 3,
+  n_taxa      = 50,
+  effect_size = 0,     # 0 = null, >0 = spike effect on exposure = 1
+  spike_frac  = 0.1    # fraction of taxa to spike
+) {
+  # subjects and samples
+  subj_ids <- paste0("S", seq_len(n_subj))
+  meta <- do.call(rbind, lapply(subj_ids, function(s) {
+    data.frame(
+      subject = s,
+      sample  = paste0(s, "_T", seq_len(m_per_subj)),
+      stringsAsFactors = FALSE
+    )
+  }))
+
+  # subject-level random effects on log-scale
+  subj_effects <- rnorm(n_subj, mean = 0, sd = 1)
+  names(subj_effects) <- subj_ids
+
+  # base log-abundances per taxon
+  taxon_means <- rnorm(n_taxa, mean = 0, sd = 1)
+  tax_names   <- paste0("Taxon", seq_len(n_taxa))
+
+  # construct matrix (samples × taxa)
+  X <- matrix(NA_real_, nrow = nrow(meta), ncol = n_taxa,
+              dimnames = list(meta$sample, tax_names))
+
+  for (i in seq_len(nrow(meta))) {
+    s_id <- meta$subject[i]
+    subj_shift <- subj_effects[s_id]
+    X[i, ] <- rnorm(n_taxa, mean = taxon_means + subj_shift, sd = 0.5)
+  }
+
+  # convert to positive abundances (log-normal-ish)
+  X <- exp(X)
+
+  # within-subject binary exposure
+  meta <- meta %>%
+    group_by(subject) %>%
+    mutate(exposure = sample(c(0L, 1L), n(), replace = TRUE)) %>%
+    ungroup()
+
+  # spike effect if effect_size > 0
+  if (effect_size > 0) {
+    n_spike <- max(1L, round(spike_frac * n_taxa))
+    spike_taxa <- sample(tax_names, n_spike)
+
+    # multiply abundances for exposure = 1 by (1 + effect_size)
+    X[meta$exposure == 1, spike_taxa] <-
+      X[meta$exposure == 1, spike_taxa] * (1 + effect_size)
+  }
+
+  # renormalize rows to relative abundances
+  X <- sweep(X, 1, rowSums(X), FUN = "/")
+
+  list(
+    metadata = meta,
+    bugs     = X
+  )
+}
+
+# Quick check
+sim0 <- simulate_microbiome()
+str(sim0$metadata)
+dim(sim0$bugs)
+```
+
+# One-shot analysis: null scenario
+
+We start with a **null** scenario, where `effect_size = 0` (no true effect of
+`exposure` on the microbiome).
+
+```{r one-null}
+sim_null <- simulate_microbiome(effect_size = 0)
+
+meta_null <- sim_null$metadata
+bugs_null <- sim_null$bugs
+
+# Bray–Curtis distance
+dist_null <- vegdist(bugs_null, method = "bray")
+
+# Naïve PERMANOVA (ignores subject)
+adonis_naive <- adonis2(dist_null ~ exposure, data = meta_null, permutations = 999)
+
+# Repeated-measures PERMANOVA (permute within subject)
+perm_rm <- PERMANOVA_repeat_measures(
+  formula           = dist_null ~ exposure,
+  data              = meta_null,
+  blocking_variable = "subject",
+  permutations      = 999
+)
+
+# Hájek-style repeated-measures test
+hajek_rm <- hajek_repeat_measures(
+  formula           = dist_null ~ exposure,
+  data              = meta_null,
+  bugs              = bugs_null,
+  blocking_variable = "subject",
+  covariate_name    = "exposure",
+  permutations      = 999,
+  split_ratio       = 0.5,
+  numerical_metadata = NULL,
+  method            = "bray"
+)
+
+adonis_naive
+perm_rm
+hajek_rm
+```
+
+Under the null, all three p-values should be approximately uniform across repeated
+simulations; here we see one realization.
+
+# Small simulation study
+
+We now run a **small Monte Carlo experiment** comparing:
+
+- `Naive`: `adonis2(dist ~ exposure)`  
+- `RM`: `PERMANOVA_repeat_measures()`  
+- `Hajek`: `hajek_repeat_measures()`
+
+under both:
+
+- **null**: `effect_size = 0` (type I error),  
+- **alternative**: `effect_size > 0` (power).
+
+To keep the vignette fast, we use small numbers; increase them in your own work.
+
+```{r sim-fun, message=FALSE, warning=FALSE}
+run_small_sim <- function(
+  n_sim       = 50,
+  n_subj      = 20,
+  m_per_subj  = 3,
+  n_taxa      = 50,
+  effect_size = 0
+) {
+  out <- vector("list", n_sim)
+
+  for (i in seq_len(n_sim)) {
+    s <- simulate_microbiome(
+      n_subj      = n_subj,
+      m_per_subj  = m_per_subj,
+      n_taxa      = n_taxa,
+      effect_size = effect_size
+    )
+
+    meta <- s$metadata
+    bugs <- s$bugs
+    dist <- vegdist(bugs, method = "bray")
+
+    # Naïve
+    a_naive <- adonis2(dist ~ exposure, data = meta, permutations = 499)
+
+    # RM
+    a_rm <- PERMANOVA_repeat_measures(
+      formula           = dist ~ exposure,
+      data              = meta,
+      blocking_variable = "subject",
+      permutations      = 499
+    )
+
+    # Hájek
+    a_hajek <- hajek_repeat_measures(
+      formula           = dist ~ exposure,
+      data              = meta,
+      bugs              = bugs,
+      blocking_variable = "subject",
+      covariate_name    = "exposure",
+      permutations      = 499,
+      split_ratio       = 0.5,
+      numerical_metadata = NULL,
+      method            = "bray"
+    )
+
+    out[[i]] <- data.frame(
+      sim      = i,
+      method   = c("Naive", "RM", "Hajek"),
+      pval     = c(
+        a_naive$`Pr(>F)`[1],
+        a_rm$`Pr(>F)`[1],
+        a_hajek$pval
+      ),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  do.call(rbind, out)
+}
+
+set.seed(123)
+
+res_null <- run_small_sim(
+  n_sim       = 50,
+  effect_size = 0
+)
+
+res_alt <- run_small_sim(
+  n_sim       = 50,
+  effect_size = 1.0  # spike in effect
+)
+
+head(res_null)
+head(res_alt)
+```
+
+## Type I error (null)
+
+```{r null-plots, fig.height=4, fig.width=6}
+alpha <- 0.05
+
+# histogram of p-values under the null
+ggplot(res_null, aes(x = pval)) +
+  geom_histogram(breaks = seq(0, 1, by = 0.05),
+                 color = "black", fill = "gray80", closed = "left") +
+  facet_wrap(~ method, nrow = 1) +
+  geom_hline(yintercept = nrow(res_null) / length(unique(res_null$method)) * alpha,
+             colour = "red") +
+  theme_bw() +
+  labs(x = "P-value", y = "Count",
+       title = "Null simulations (effect_size = 0): p-value distributions")
+
+# empirical type I error
+res_null %>%
+  group_by(method) %>%
+  summarise(
+    FPR_0.05 = mean(pval < alpha),
+    .groups  = "drop"
+  )
+```
+
+The red line marks the expected number of discoveries at level 0.05 if p-values
+were perfectly uniform. In a well-calibrated method, `FPR_0.05` should be near 0.05.
+
+## Power (alternative)
+
+```{r alt-plots, fig.height=4, fig.width=6}
+# histogram of p-values under the alternative
+ggplot(res_alt, aes(x = pval)) +
+  geom_histogram(breaks = seq(0, 1, by = 0.05),
+                 color = "black", fill = "gray80", closed = "left") +
+  facet_wrap(~ method, nrow = 1) +
+  theme_bw() +
+  labs(x = "P-value", y = "Count",
+       title = "Alternative simulations (effect_size = 1): p-value distributions")
+
+# empirical power at alpha = 0.05
+res_alt %>%
+  group_by(method) %>%
+  summarise(
+    Power_0.05 = mean(pval < alpha),
+    .groups    = "drop"
+  )
+```
+
+Under the alternative (`effect_size = 1` here), methods with larger `Power_0.05`
+are more sensitive to the spiked microbiome effect.
+
+# Summary
+
+In this vignette we:
+
+- simulated simple repeated-measures microbiome data with subject-level
+  heterogeneity and a binary exposure,
+- applied:
+  - a naïve PERMANOVA that ignores the subject structure,
+  - `PERMANOVA_repeat_measures()` using within-subject permutations,
+  - `hajek_repeat_measures()` for a Hájek-style repeated-measures test,
+- ran a small simulation to compare type I error and power.
+
+You can adapt the simulation settings (number of subjects, samples per subject,
+taxa, and effect sizes) to match your study context and to benchmark different
+PERMANOVA-style methods using **permabrioche**.
+
+```{r session-info}
+sessionInfo()
+```
+
+
