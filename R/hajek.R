@@ -276,9 +276,9 @@ hajek_repeat_measures_core_without_propensity <- function(D,
   observed_tau <- get_tau_hat(Ttest, Y, etest)
 
   # --- Permutation null ---
-  ctrl <- permute::how(blocks = blocks)
+  ctrl <- how(blocks = blocks)
   null_taus <- replicate(permutations, {
-    within.i <- permute::shuffle(nrow(permute_within), control = ctrl)
+    within.i <- shuffle(nrow(permute_within), control = ctrl)
     block.i  <- sample(seq_len(nrow(block_data)))
     mtdat_perm <- cbind(
       permute_within[within.i, , drop = FALSE],
@@ -427,9 +427,9 @@ hajek_repeat_measures_core <- function(D,
   observed_tau <- get_tau_hat(Ttest, Ytest, e_test)
 
   # Permutation null
-  ctrl <- permute::how(blocks = blocks)
+  ctrl <- how(blocks = blocks)
   null_taus <- replicate(permutations, {
-    within.i <- permute::shuffle(nrow(permute_within), control = ctrl)
+    within.i <- shuffle(nrow(permute_within), control = ctrl)
     block.i  <- sample(seq_len(nrow(block_data)))
 
     mtdat_perm <- as.data.frame(cbind(

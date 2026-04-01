@@ -229,9 +229,9 @@ PERMANOVA_repeat_measures_core <- function(
   R2    <- ad$R2; names(R2) <- rownames(ad)
 
   nullsamples <- matrix(NA_real_, nrow = length(R2), ncol = permutations)
-  ctrl <- permute::how(blocks = blocks)
+  ctrl <- how(blocks = blocks)
   for (i in seq_len(permutations)) {
-    within.i <- permute::shuffle(nrow(permute_within), control = ctrl)
+    within.i <- shuffle(nrow(permute_within), control = ctrl)
     block.i  <- sample(seq_len(nrow(block_data)))
     mtdat.i  <- cbind(
       permute_within[within.i,,drop=FALSE],
