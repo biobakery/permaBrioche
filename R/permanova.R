@@ -14,11 +14,17 @@
 #' @param permutations Integer; number of permutations for the test (default 999).
 #' @param na.rm Logical; if \code{TRUE}, samples with any missing metadata are dropped
 #'   in a block-aware manner; otherwise an error is thrown if any NA are present.
+#' @param center_R2 Logical; if \code{TRUE}, subtracts the mean of the
+#'   permutation null R\eqn{^2} distribution from the observed R\eqn{^2}
+#'   for each term, returning a \code{R2_centered} column.
 #'
 #' @return A \code{vegan::adonis} table (from \code{adonis2}) with an added
 #'   \code{Pr(>F)} column computed from the custom null and an optional
 #'   \code{na.removed} attribute if \code{na.rm=TRUE}. A descriptive \code{"heading"}
 #'   attribute is also added.
+#'   If \code{center_R2 = TRUE}, an additional \code{R2_centered} column is
+#'   included, and the mean null R\eqn{^2} values are stored in the
+#'   \code{"null_means_R2"} attribute.
 #'
 #' @details
 #' This function separates metadata into two groups:
@@ -62,7 +68,8 @@ PERMANOVA_repeat_measures <- function(formula,
                                       data,
                                       blocking_variable = "subject",
                                       permutations = 999,
-                                      na.rm = FALSE) {
+                                      na.rm = FALSE,
+                                      center_R2 = FALSE) {
   # --- 1. Parse formula and extract distance object ---
   YVAR <- formula[[2]]
   lhs  <- eval(YVAR, environment(formula), globalenv())
@@ -124,7 +131,8 @@ PERMANOVA_repeat_measures <- function(formula,
     block_data     = block_data,
     permutations   = permutations,
     metadata_order = metadata_order,
-    na.rm          = na.rm
+    na.rm          = na.rm,
+    center_R2      = center_R2
   )
 
   heading <- sprintf(paste(
@@ -148,7 +156,8 @@ PERMANOVA_repeat_measures_core <- function(
     D, permute_within, blocks = NULL, block_data,
     permutations = 999,
     metadata_order = c(names(permute_within), names(block_data)),
-    na.rm = FALSE) {
+    na.rm = FALSE,
+    center_R2 = FALSE) {
 
   if (!inherits(D, "dist")) stop("D must be a dist object")
 
@@ -244,6 +253,12 @@ PERMANOVA_repeat_measures_core <- function(
   n <- length(R2)
   R2[n-1]           <- 1 - R2[n-1]
   nullsamples[n-1,] <- 1 - nullsamples[n-1,]
+
+  null_means <- rowMeans(nullsamples, na.rm = TRUE)
+  if (center_R2) {
+    ad$R2_centered <- R2 - null_means
+  }
+  attr(ad, "null_means_R2") <- null_means
 
   exceedances <- rowSums(nullsamples > R2)
   P <- (exceedances + 1) / (permutations + 1)
