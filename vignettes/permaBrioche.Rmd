@@ -52,7 +52,7 @@ simulate_microbiome <- function(
   m_per_subj  = 3,
   n_taxa      = 50,
   effect_size = 0,     # 0 = null, >0 = spike effect on exposure = 1
-  spike_frac  = 0.1    # fraction of taxa to spike
+  spike_frac  = 0.1    # fraction of taxa to spike with effect
 ) {
   # subjects and samples
   subj_ids <- paste0("S", seq_len(n_subj))
