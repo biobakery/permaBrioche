@@ -569,9 +569,26 @@ hajek_repeat_measures_loc_and_disp <- function(D,
     block_data[blocks, , drop = FALSE]
   )
   
-  # Enforce final alignment explicitly
-  if (!identical(rownames(mtdat), rownames(bugs))) {
-    stop("Metadata rows must align with bugs; check row ordering.")
+  # --- Enforce alignment between metadata and bugs ---
+  
+  # Case 1: permute_within had no rownames → assume row order matches bugs
+  if (is.null(rownames(mtdat))) {
+    rownames(mtdat) <- rownames(bugs)
+  }
+  
+  # Case 2: exact match (fast path)
+  if (identical(rownames(mtdat), rownames(bugs))) {
+    # OK
+  } else if (setequal(rownames(mtdat), rownames(bugs))) {
+    # Case 3: same samples, different order → reorder metadata to bugs
+    mtdat <- mtdat[rownames(bugs), , drop = FALSE]
+  } else {
+    # Case 4: incompatible
+    stop(
+      "Metadata rows do not align with 'bugs'. ",
+      "Row names must either match exactly, be absent (row-order alignment), ",
+      "or be a permutation of bugs row names."
+    )
   }
   
   
