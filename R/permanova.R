@@ -9,6 +9,9 @@
 #'   \code{D} is a \code{\link{dist}} object compatible with \code{vegan::adonis2}.
 #' @param data A \code{data.frame} with rownames matching the distance object and
 #'   columns for the RHS formula terms and the \code{blocking_variable}.
+#' @param sample_id Optional character scalar giving the column in \code{data}
+#'   that contains sample identifiers matching the distance matrix labels.
+#'   If \code{NULL}, rownames(data) are used.
 #' @param blocking_variable Character scalar; column in \code{data} defining the
 #'   subject/cluster for repeated measures (default: \code{"subject"}).
 #' @param permutations Integer; number of permutations for the test (default 999).
@@ -66,10 +69,14 @@
 #' @export
 PERMANOVA_repeat_measures <- function(formula,
                                       data,
+                                      sample_id = NULL, 
                                       blocking_variable = "subject",
                                       permutations = 999,
                                       na.rm = FALSE,
                                       center_R2 = FALSE) {
+  
+  data <- as.data.frame(data)
+  
   # --- 1. Parse formula and extract distance object ---
   YVAR <- formula[[2]]
   lhs  <- eval(YVAR, environment(formula), globalenv())
@@ -79,9 +86,38 @@ PERMANOVA_repeat_measures <- function(formula,
 
   D <- lhs
 
-  # --- 2. Make sure distance matrix matches data rownames ---
-  if (!all(rownames(as.matrix(D)) == rownames(data)))
-    stop("Row names of distance matrix must match row names of data")
+  # --- 2. Align distance matrix samples with metadata ---
+  d_labels <- attr(D, "Labels")
+  if (is.null(d_labels))
+    stop("Distance object has no Labels attribute")
+  
+  if (is.null(sample_id)) {
+    # Use rownames(data)
+    if (is.null(rownames(data)))
+      stop("data has no rownames and sample_id is NULL")
+    
+    if (!all(d_labels %in% rownames(data)))
+      stop("Not all distance labels are present in rownames(data). Consider specifying sample_id")
+    
+    data <- data[d_labels, , drop = FALSE]
+    
+  } else {
+    # Use explicit sample_id column
+    if (!sample_id %in% colnames(data))
+      stop(sprintf("sample_id '%s' not found in data", sample_id))
+    
+    if (any(is.na(data[[sample_id]])))
+      stop("sample_id column contains NA values")
+    
+    if (!all(d_labels %in% data[[sample_id]]))
+      stop("Not all distance labels are present in data[[sample_id]]")
+    
+    if (anyDuplicated(data[[sample_id]]))
+      stop("sample_id column must contain unique sample identifiers")
+    
+    data <- data[match(d_labels, data[[sample_id]]), , drop = FALSE]
+    rownames(data) <- d_labels
+  }
 
   # --- 3. Subset to blocking variable + RHS terms ---
   rhs_terms <- labels(terms(formula))
@@ -176,16 +212,17 @@ PERMANOVA_repeat_measures_core <- function(
   if (length(setdiff(metadata_order, union(names(permute_within), names(block_data)))) > 0)
     stop("metadata_order contains metadata not in permute_within and block_data")
 
-  ord <- rownames(as.matrix(D))
+  ord <- attr(D, "Labels") #ord <- rownames(as.matrix(D))
   if (length(ord) != nrow(permute_within) || length(blocks) != length(ord))
     stop("blocks, permute_within, and D are not the same size")
-
-  if (is.null(rownames(permute_within))) {
-    warning("permute_within has no rownames - can't verify sample orders")
-  } else if (!all(ord == rownames(permute_within))) {
-    stop("rownames do not match between permute_within and D")
+  
+  if (!is.null(rownames(permute_within))) {
+    if (!all(ord %in% rownames(permute_within)))
+      stop("Some samples in D are missing from permute_within")
+    
+    permute_within <- permute_within[ord, , drop = FALSE]
   }
-
+  
   if (any(is.na(blocks))) stop("NAs are not allowed in blocks")
 
   if (is.factor(blocks)) {
