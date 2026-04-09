@@ -87,7 +87,7 @@ We now define a simple simulator that:
 - **spikes some taxa** for exposed samples,
 - returns metadata, spiked microbiome data, and a Bray–Curtis 'dist' object.
 
-```{r simulator}
+```{r simulator, warning = FALSE}
 simulate_hmp_microbiome <- function(
   n_subj           = 30,
   max_samples_subj = 10,
@@ -198,7 +198,7 @@ We start with a **null** scenario, `effect_size = 0`, where the simulated
 exposure has *no* spiked microbiome effect (it still may correlate with the
 real underlying HMP data, but we do not add any artificial effect).
 
-```{r one-null}
+```{r one-null, warning = FALSE}
 sim_null <- simulate_hmp_microbiome(
   n_subj           = 30,
   max_samples_subj = 10,
@@ -336,7 +336,7 @@ set.seed(123)
 
 # Null: no spiked effect from exposure
 res_null <- run_small_sim_hmp(
-  n_sim           = 5,
+  n_sim           = 3,
   n_subj          = 30,
   max_samples_subj = 10,
   frac_spike_taxa = 0.1,
@@ -345,11 +345,11 @@ res_null <- run_small_sim_hmp(
 
 # Alternative: clear spiked effect on a subset of taxa
 res_alt <- run_small_sim_hmp(
-  n_sim           = 5,
+  n_sim           = 3,
   n_subj          = 30,
   max_samples_subj = 10,
   frac_spike_taxa = 0.1,
-  effect_size     = 20    # multiplicative spike
+  effect_size     = 40    # multiplicative spike
 )
 
 head(res_null)
