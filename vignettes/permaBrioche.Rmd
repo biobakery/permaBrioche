@@ -49,8 +49,13 @@ set.seed(1)
 # For a real package vignette you would typically ship these as
 # package data, e.g.:
 #
-data("d_hmp",   package = "permabrioche")
-data("bugs_hmp", package = "permabrioche")
+
+d_path <- system.file("extdata", "d_hmp.rda", package = "permabrioche")
+bugs_path <- system.file("extdata", "bugs_hmp.rda", package = "permabrioche")
+
+load(d_path)
+load(bugs_path)
+
 #
 # Here we assume they are available as RDA files in an accessible
 # directory. Adjust the path to wherever you store them.
