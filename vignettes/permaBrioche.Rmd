@@ -404,39 +404,35 @@ distribution at significance level 0.05. A well-calibrated method will have
 We now look at the **alternative** scenario, where the exposure is artificially
 linked to a spike in microbiome composition.
 
-```{r alt-plots, fig.height=4, fig.width=6}
-alpha <- 0.05
+```{r hajek-loc-disp, message = FALSE, warning = FALSE}
+# --- Align everything explicitly to bugs ---
 
-n_per_method_alt <- nrow(res_alt) / length(unique(res_alt$method))
+# Sample-aligned blocks
+blocks <- meta_null$subject
+names(blocks) <- meta_null$sample
+blocks <- blocks[rownames(bugs_null)]
 
-ggplot(res_alt, aes(x = pval)) +
-  geom_histogram(
-    breaks = seq(0, 1, by = 0.05),
-    color  = "black",
-    fill   = "gray80",
-    closed = "left"
-  ) +
-  geom_hline(
-    yintercept = n_per_method_alt * alpha,
-    colour     = "red",
-    linewidth  = 1
-  ) +
-  facet_wrap(~ method, nrow = 1) +
-  theme_bw() +
-  labs(
-    title    = "Alternative simulations (HMP-based, effect_size = 5): p-value distributions",
-    subtitle = "Red line is the null-reference count at alpha = 0.05",
-    x        = "P-value",
-    y        = "Count"
-  )
+# Sample-aligned varying covariates
+permute_within <- meta_null[rownames(bugs_null), "exposure", drop = FALSE]
 
-# Empirical power at alpha = 0.05
-res_alt %>%
-  group_by(method) %>%
-  summarise(
-    Power_0.05 = mean(pval < alpha),
-    .groups    = "drop"
-  )
+# Expand block-level data to SAMPLE level
+block_data <- data.frame(dummy = 0, row.names = unique(blocks))
+block_data <- block_data[blocks, , drop = FALSE]
+rownames(block_data) <- rownames(bugs_null)   # <-- CRITICAL LINE
+
+# Call the decomposition
+loc_disp <- hajek_repeat_measures_loc_and_disp(
+  D              = dist_null,
+  permute_within = permute_within,
+  blocks         = blocks,
+  block_data     = block_data,
+  bugs           = bugs_null,
+  covariate_name = "exposure",
+  split_ratio    = 0.5,
+  method         = "bray"
+)
+
+loc_disp
 ```
 
 Under a strong enough spiked effect, well-powered methods will concentrate p-values
