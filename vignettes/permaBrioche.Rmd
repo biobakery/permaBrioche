@@ -1,10 +1,17 @@
 ---
-title: "permabrioche: Repeated-Measures PERMANOVA with HMP-Based Examples"
+title: "permabrioche vignette: HMP-Based Examples"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{permabrioche (HMP-based simulated example)}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+header-includes:
+  - |
+    <style>
+      h1.title {
+        color: "darkred";
+      }
+    </style>
 ---
 
 ```{r, include = FALSE}
@@ -35,9 +42,8 @@ We:
 
 # Setup and data
 
-```{r setup}
+```{r setup, message = FALSE, warning = FALSE}
 library(permabrioche)
-library(vegan)
 library(dplyr)
 library(ggplot2)
 
@@ -46,52 +52,19 @@ set.seed(1)
 # -----------------------------------------------------------
 # Load HMP-based microbiome data (metadata `d`, counts `bugs`)
 # -----------------------------------------------------------
-# For a real package vignette you would typically ship these as
-# package data, e.g.:
-#
-
-
-# Load HMP-based data from inst/extdata
 d_path    <- system.file("extdata", "d_hmp.Rda",    package = "permabrioche")
 bugs_path <- system.file("extdata", "bugs_hmp.Rda", package = "permabrioche")
-
-stopifnot(file.exists(d_path), file.exists(bugs_path))
-
 obj_d    <- load(d_path)
 obj_bugs <- load(bugs_path)
-
 # Explicitly extract first object from each Rda
 d    <- get(obj_d[1])
 bugs <- get(obj_bugs[1])
-
 rm(obj_d, obj_bugs)
 
-
-#
-# Here we assume they are available as RDA files in an accessible
-# directory. Adjust the path to wherever you store them.
-
-# Example (adapt as needed):
-# my_dir <- "/path/to/your/data"
-# load(file.path(my_dir, "d_hmp.Rda"))    # loads an object `d`
-# load(file.path(my_dir, "bugs_hmp.Rda")) # loads an object `bugs`
-
-# For illustration here, we'll assume `d` and `bugs` are already in memory.
 # Drop the unnecessary "sample" column from bugs:
 bugs      <- bugs[,-1]
 
-# Standard Checks
-# metadata should have at least a 'subject' column and a 'sample' column
-stopifnot("subject" %in% colnames(d),
-          "sample"  %in% colnames(d))
-
-# Make sure rows of bugs align with sample IDs in d
-if (!identical(rownames(bugs), d$sample)) {
-  bugs <- bugs[match(d$sample, rownames(bugs)), , drop = FALSE]
-}
-stopifnot(identical(rownames(bugs), d$sample))
-
-# Keep originals for use in simulations
+# Keep originals
 d_orig    <- d
 bugs_orig <- bugs
 
