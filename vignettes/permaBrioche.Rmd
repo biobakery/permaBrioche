@@ -376,7 +376,7 @@ res_alt <- run_small_sim_hmp(
   n_subj          = 30,
   max_samples_subj = 10,
   frac_spike_taxa = 0.1,
-  effect_size     = 5    # multiplicative spike; tune as desired
+  effect_size     = 20    # multiplicative spike
 )
 
 head(res_null)
