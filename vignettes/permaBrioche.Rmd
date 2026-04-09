@@ -305,7 +305,6 @@ run_small_sim_hmp <- function(
   out <- vector("list", n_sim)
 
   for (i in seq_len(n_sim)) {
-    cat(i, ". ")
 
     s <- simulate_hmp_microbiome(
       n_subj           = n_subj,
@@ -364,7 +363,7 @@ set.seed(123)
 
 # Null: no spiked effect from exposure
 res_null <- run_small_sim_hmp(
-  n_sim           = 30,
+  n_sim           = 5,
   n_subj          = 30,
   max_samples_subj = 10,
   frac_spike_taxa = 0.1,
@@ -373,7 +372,7 @@ res_null <- run_small_sim_hmp(
 
 # Alternative: clear spiked effect on a subset of taxa
 res_alt <- run_small_sim_hmp(
-  n_sim           = 30,
+  n_sim           = 5,
   n_subj          = 30,
   max_samples_subj = 10,
   frac_spike_taxa = 0.1,
