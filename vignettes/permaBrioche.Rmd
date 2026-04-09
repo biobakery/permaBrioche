@@ -244,6 +244,7 @@ adonis_naive <- adonis2(dist_null ~ exposure, data = meta_null, permutations = 9
 perm_rm <- PERMANOVA_repeat_measures(
   formula           = dist_null ~ exposure,
   data              = meta_null,
+  sample_id         = "sample",
   blocking_variable = "subject",
   permutations      = 999
 )
@@ -252,6 +253,7 @@ perm_rm <- PERMANOVA_repeat_measures(
 hajek_rm <- hajek_repeat_measures(
   formula           = dist_null ~ exposure,
   data              = meta_null,
+  sample_id         = "sample",
   bugs              = bugs_null,
   blocking_variable = "subject",
   covariate_name    = "exposure",
@@ -324,6 +326,7 @@ run_small_sim_hmp <- function(
     a_rm <- PERMANOVA_repeat_measures(
       formula           = dist ~ exposure,
       data              = meta,
+      sample_id         = "sample",
       blocking_variable = "subject",
       permutations      = 499
     )
@@ -332,6 +335,7 @@ run_small_sim_hmp <- function(
     a_hajek <- hajek_repeat_measures(
       formula           = dist ~ exposure,
       data              = meta,
+      sample_id         = "sample",
       bugs              = bugs,
       blocking_variable = "subject",
       covariate_name    = "exposure",
