@@ -1,6 +1,6 @@
 Package: permabrioche
 Title: PERMANOVA with Blocked/Repeat-Measures Including Observational Causal Hájek Estimator
-Version: 0.0.0.9000
+Version: 0.99.0
 Authors@R: 
     person("Sithija", "Manage", email = "ssm255@cornell.edu", role = c("aut", "cre"))
 Description: Tools for PERMANOVA in repeated-measures designs and Hájek estimator
@@ -21,7 +21,8 @@ Suggests:
     knitr,
     rmarkdown,
     BiocStyle,
-    covr
+    covr,
+    ggplot2
 VignetteBuilder: knitr
 URL: https://github.com/biobakery/perma-brioche
 BugReports: https://github.com/biobakery/perma-brioche/issues
