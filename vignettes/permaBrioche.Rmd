@@ -458,23 +458,29 @@ The decomposition uses the **same subject‑level train/test split** as the
 Hajek estimator, ensuring no information leakage.
 
 ```{r hajek-loc-disp, message = FALSE, warning = FALSE}
-# --- Align everything explicitly to bugs (SAMPLE level) ---
+# --- Construct inputs at the CORRECT levels ---
 
-# Blocks aligned to sample order
+# Sample -> subject mapping
 blocks <- meta_null$subject
 names(blocks) <- meta_null$sample
 blocks <- blocks[rownames(bugs_null)]
 
-# Sample-aligned varying covariates
-permute_within <- meta_null[rownames(bugs_null), "exposure", drop = FALSE]
-
-# Sample-level block_data (no static block covariates here)
-block_data <- data.frame(
-  dummy = 0,
+# permute_within: can be empty or dummy (no within-block varying covariates needed here)
+permute_within <- data.frame(
+  dummy = rep(0, nrow(bugs_null)),
   row.names = rownames(bugs_null)
 )
 
-# Call the decomposition
+# block_data: SUBJECT-LEVEL covariate (this is the key!)
+block_data <- aggregate(
+  exposure ~ subject,
+  data = meta_null,
+  FUN = function(x) x[1]
+)
+row.names(block_data) <- block_data$subject
+block_data$subject <- NULL
+
+# Call decomposition
 loc_disp <- hajek_repeat_measures_loc_and_disp(
   D              = dist_null,
   permute_within = permute_within,
