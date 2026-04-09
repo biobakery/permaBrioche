@@ -458,21 +458,18 @@ The decomposition uses the **same subject‑level train/test split** as the
 Hajek estimator, ensuring no information leakage.
 
 ```{r hajek-loc-disp, message = FALSE, warning = FALSE}
-# Reconstruct the metadata pieces needed for the decomposition
-# (same structure used internally by hajek_repeat_measures)
+# Align blocks and metadata explicitly to bugs
 
-# Identify blocks and RHS variables
 blocks <- meta_null$subject
+names(blocks) <- meta_null$sample
+blocks <- blocks[rownames(bugs_null)]
 
-rhs_vars <- "exposure"
-permute_within <- meta_null[, rhs_vars, drop = FALSE]
+permute_within <- meta_null[rownames(bugs_null), "exposure", drop = FALSE]
 
-# Block-level static data (here: none, but keep API consistent)
 block_data <- data.frame(row.names = unique(blocks))
 
-# Compute location / dispersion decomposition
 loc_disp <- hajek_repeat_measures_loc_and_disp(
-  D              = dist_null,      # kept for API symmetry
+  D              = dist_null,
   permute_within = permute_within,
   blocks         = blocks,
   block_data     = block_data,
@@ -515,4 +512,3 @@ In this vignette we:
   - type I error (null, `effect_size = 0`),
   - power (alternative, `effect_size > 0`).
 - demonstrated the mean-variance decomposition of the Hajek estimator.
-
