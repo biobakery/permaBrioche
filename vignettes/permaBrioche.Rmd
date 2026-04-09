@@ -489,7 +489,7 @@ loc_disp <- hajek_repeat_measures_loc_and_disp(
   bugs           = bugs_null,
   covariate_name = "exposure",
   split_ratio    = 0.5,
-  method         = "bray"
+  method         = "euclidean"
 )
 
 loc_disp
