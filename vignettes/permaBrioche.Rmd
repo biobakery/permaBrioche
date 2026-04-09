@@ -50,16 +50,22 @@ set.seed(1)
 # package data, e.g.:
 #
 
-d_path <- system.file("extdata", "d_hmp.Rda", package = "permabrioche")
+
+# Load HMP-based data from inst/extdata
+d_path    <- system.file("extdata", "d_hmp.Rda",    package = "permabrioche")
 bugs_path <- system.file("extdata", "bugs_hmp.Rda", package = "permabrioche")
 
-load(d_path)
-load(bugs_path)
+stopifnot(file.exists(d_path), file.exists(bugs_path))
 
-d    <- d_hmp
-bugs <- bugs_hmp
+obj_d    <- load(d_path)
+obj_bugs <- load(bugs_path)
 
-rm(d_hmp, bugs_hmp)
+# Explicitly extract first object from each Rda
+d    <- get(obj_d[1])
+bugs <- get(obj_bugs[1])
+
+rm(list = c(obj_d, obj_bugs))
+
 
 #
 # Here we assume they are available as RDA files in an accessible
