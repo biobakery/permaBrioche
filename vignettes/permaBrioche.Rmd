@@ -64,7 +64,7 @@ obj_bugs <- load(bugs_path)
 d    <- get(obj_d[1])
 bugs <- get(obj_bugs[1])
 
-rm(list = c(obj_d, obj_bugs))
+rm(obj_d, obj_bugs)
 
 
 #
