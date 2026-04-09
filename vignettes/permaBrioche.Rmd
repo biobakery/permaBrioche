@@ -486,7 +486,3 @@ In this vignette we:
   - type I error (null, `effect_size = 0`),
   - power (alternative, `effect_size > 0`).
 
-
-```{r session-info}
-sessionInfo()
-```
