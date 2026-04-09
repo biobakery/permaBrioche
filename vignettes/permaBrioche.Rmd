@@ -56,6 +56,11 @@ bugs_path <- system.file("extdata", "bugs_hmp.rda", package = "permabrioche")
 load(d_path)
 load(bugs_path)
 
+d    <- d_hmp
+bugs <- bugs_hmp
+
+rm(d_hmp, bugs_hmp)
+
 #
 # Here we assume they are available as RDA files in an accessible
 # directory. Adjust the path to wherever you store them.
