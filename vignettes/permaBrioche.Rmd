@@ -404,6 +404,59 @@ distribution at significance level 0.05. A well-calibrated method will have
 We now look at the **alternative** scenario, where the exposure is artificially
 linked to a spike in microbiome composition.
 
+```{r alt-plots, fig.height=4, fig.width=6}
+alpha <- 0.05
+
+n_per_method_alt <- nrow(res_alt) / length(unique(res_alt$method))
+
+ggplot(res_alt, aes(x = pval)) +
+  geom_histogram(
+    breaks = seq(0, 1, by = 0.05),
+    color  = "black",
+    fill   = "gray80",
+    closed = "left"
+  ) +
+  geom_hline(
+    yintercept = n_per_method_alt * alpha,
+    colour     = "red",
+    linewidth  = 1
+  ) +
+  facet_wrap(~ method, nrow = 1) +
+  theme_bw() +
+  labs(
+    title    = "Alternative simulations (HMP-based, effect_size = 5): p-value distributions",
+    subtitle = "Red line is the null-reference count at alpha = 0.05",
+    x        = "P-value",
+    y        = "Count"
+  )
+
+# Empirical power at alpha = 0.05
+res_alt %>%
+  group_by(method) %>%
+  summarise(
+    Power_0.05 = mean(pval < alpha),
+    .groups    = "drop"
+  )
+```
+
+Under a strong enough spiked effect, well-powered methods will concentrate p-values
+near 0 and show larger `Power_0.05`.
+
+# Mean–variance decomposition (location vs dispersion)
+
+In addition to the overall Hajek effect, **permabrioche** can decompose
+the test‑set effect into:
+
+- a **location** component (difference in mean feature vectors relative
+  to the reference centroid), and
+- a **dispersion** component (difference in total variance / spread).
+
+This decomposition helps distinguish whether an exposure primarily shifts
+the *center* of the microbiome distribution or instead alters its *variability*.
+
+The decomposition uses the **same subject‑level train/test split** as the
+Hajek estimator, ensuring no information leakage.
+
 ```{r hajek-loc-disp, message = FALSE, warning = FALSE}
 # --- Align everything explicitly to bugs ---
 
@@ -434,50 +487,6 @@ loc_disp <- hajek_repeat_measures_loc_and_disp(
 
 loc_disp
 ```
-
-Under a strong enough spiked effect, well-powered methods will concentrate p-values
-near 0 and show larger `Power_0.05`.
-
-# Mean–variance decomposition (location vs dispersion)
-
-In addition to the overall Hajek effect, **permabrioche** can decompose
-the test‑set effect into:
-
-- a **location** component (difference in mean feature vectors relative
-  to the reference centroid), and
-- a **dispersion** component (difference in total variance / spread).
-
-This decomposition helps distinguish whether an exposure primarily shifts
-the *center* of the microbiome distribution or instead alters its *variability*.
-
-The decomposition uses the **same subject‑level train/test split** as the
-Hajek estimator, ensuring no information leakage.
-
-```{r hajek-loc-disp, message = FALSE, warning = FALSE}
-# Align blocks and metadata explicitly to bugs
-
-blocks <- meta_null$subject
-names(blocks) <- meta_null$sample
-blocks <- blocks[rownames(bugs_null)]
-
-permute_within <- meta_null[rownames(bugs_null), "exposure", drop = FALSE]
-
-block_data <- data.frame(row.names = unique(blocks))
-
-loc_disp <- hajek_repeat_measures_loc_and_disp(
-  D              = dist_null,
-  permute_within = permute_within,
-  blocks         = blocks,
-  block_data     = block_data,
-  bugs           = bugs_null,
-  covariate_name = "exposure",
-  split_ratio    = 0.5,
-  method         = "bray"
-)
-
-loc_disp
-```
-
 **Interpretation**
 
 - `observed_tau` is the same Hajek‐style total effect computed on the test set.
