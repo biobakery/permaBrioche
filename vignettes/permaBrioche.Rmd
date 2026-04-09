@@ -458,9 +458,9 @@ The decomposition uses the **same subject‑level train/test split** as the
 Hajek estimator, ensuring no information leakage.
 
 ```{r hajek-loc-disp, message = FALSE, warning = FALSE}
-# --- Align everything explicitly to bugs ---
+# --- Align everything explicitly to bugs (SAMPLE level) ---
 
-# Sample-aligned blocks
+# Blocks aligned to sample order
 blocks <- meta_null$subject
 names(blocks) <- meta_null$sample
 blocks <- blocks[rownames(bugs_null)]
@@ -468,10 +468,11 @@ blocks <- blocks[rownames(bugs_null)]
 # Sample-aligned varying covariates
 permute_within <- meta_null[rownames(bugs_null), "exposure", drop = FALSE]
 
-# Expand block-level data to SAMPLE level
-block_data <- data.frame(dummy = 0, row.names = unique(blocks))
-block_data <- block_data[blocks, , drop = FALSE]
-rownames(block_data) <- rownames(bugs_null)   # <-- CRITICAL LINE
+# Sample-level block_data (no static block covariates here)
+block_data <- data.frame(
+  dummy = 0,
+  row.names = rownames(bugs_null)
+)
 
 # Call the decomposition
 loc_disp <- hajek_repeat_measures_loc_and_disp(
@@ -487,6 +488,7 @@ loc_disp <- hajek_repeat_measures_loc_and_disp(
 
 loc_disp
 ```
+
 **Interpretation**
 
 - `observed_tau` is the same Hajek‐style total effect computed on the test set.
