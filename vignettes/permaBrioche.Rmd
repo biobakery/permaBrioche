@@ -50,8 +50,8 @@ set.seed(1)
 # package data, e.g.:
 #
 
-d_path <- system.file("extdata", "d_hmp.rda", package = "permabrioche")
-bugs_path <- system.file("extdata", "bugs_hmp.rda", package = "permabrioche")
+d_path <- system.file("extdata", "d_hmp.Rda", package = "permabrioche")
+bugs_path <- system.file("extdata", "bugs_hmp.Rda", package = "permabrioche")
 
 load(d_path)
 load(bugs_path)
