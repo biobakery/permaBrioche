@@ -241,7 +241,7 @@ dist_null <- sim_null$dist
 adonis_naive <- adonis2(dist_null ~ exposure, data = meta_null, permutations = 999)
 
 # Repeated-measures PERMANOVA: permute within subjects
-perm_rm <- PERMANOVA_repeat_measures_beta(
+perm_rm <- PERMANOVA_repeat_measures(
   formula           = dist_null ~ exposure,
   data              = meta_null,
   sample_id         = "sample",
@@ -250,7 +250,7 @@ perm_rm <- PERMANOVA_repeat_measures_beta(
 )
 
 # Hájek-style repeated-measures test
-hajek_rm <- hajek_repeat_measures_beta(
+hajek_rm <- hajek_repeat_measures(
   formula           = dist_null ~ exposure,
   data              = meta_null,
   sample_id         = "sample",
@@ -323,7 +323,7 @@ run_small_sim_hmp <- function(
     a_naive <- adonis2(dist ~ exposure, data = meta, permutations = 499)
 
     # Repeated-measures PERMANOVA
-    a_rm <- PERMANOVA_repeat_measures_beta(
+    a_rm <- PERMANOVA_repeat_measures(
       formula           = dist ~ exposure,
       data              = meta,
       sample_id         = "sample",
@@ -332,7 +332,7 @@ run_small_sim_hmp <- function(
     )
 
     # Hájek repeated-measures test
-    a_hajek <- hajek_repeat_measures_beta(
+    a_hajek <- hajek_repeat_measures(
       formula           = dist ~ exposure,
       data              = meta,
       sample_id         = "sample",
