@@ -39,6 +39,7 @@ We:
 4. run a **small simulation study** that uses the HMP data as a base:
    - a **null** scenario (no spiked effect of exposure),
    - an **alternative** scenario (spiked microbiome effect).
+5. Demonstrate the mean-variance decomposition of the Hajek estimator.
 
 # Setup and data
 
@@ -441,6 +442,62 @@ res_alt %>%
 Under a strong enough spiked effect, well-powered methods will concentrate p-values
 near 0 and show larger `Power_0.05`.
 
+# Mean–variance decomposition (location vs dispersion)
+
+In addition to the overall Hajek effect, **permabrioche** can decompose
+the test‑set effect into:
+
+- a **location** component (difference in mean feature vectors relative
+  to the reference centroid), and
+- a **dispersion** component (difference in total variance / spread).
+
+This decomposition helps distinguish whether an exposure primarily shifts
+the *center* of the microbiome distribution or instead alters its *variability*.
+
+The decomposition uses the **same subject‑level train/test split** as the
+Hajek estimator, ensuring no information leakage.
+
+```{r hajek-loc-disp, message = FALSE, warning = FALSE}
+# Reconstruct the metadata pieces needed for the decomposition
+# (same structure used internally by hajek_repeat_measures)
+
+# Identify blocks and RHS variables
+blocks <- meta_null$subject
+
+rhs_vars <- "exposure"
+permute_within <- meta_null[, rhs_vars, drop = FALSE]
+
+# Block-level static data (here: none, but keep API consistent)
+block_data <- data.frame(row.names = unique(blocks))
+
+# Compute location / dispersion decomposition
+loc_disp <- hajek_repeat_measures_loc_and_disp(
+  D              = dist_null,      # kept for API symmetry
+  permute_within = permute_within,
+  blocks         = blocks,
+  block_data     = block_data,
+  bugs           = bugs_null,
+  covariate_name = "exposure",
+  split_ratio    = 0.5,
+  method         = "bray"
+)
+
+loc_disp
+```
+
+**Interpretation**
+
+- `observed_tau` is the same Hajek‐style total effect computed on the test set.
+- `observed_loc` reflects shifts in the average microbiome composition
+  (movement of group centroids).
+- `observed_disp` reflects changes in overall variability
+  (total feature‑space variance).
+
+A large location component with small dispersion suggests a *mean shift*,
+whereas a large dispersion component suggests increased heterogeneity
+without a strong centroid shift.
+
+
 # Summary
 
 In this vignette we:
@@ -457,4 +514,5 @@ In this vignette we:
 - ran a **small Monte Carlo study** to inspect:
   - type I error (null, `effect_size = 0`),
   - power (alternative, `effect_size > 0`).
+- demonstrated the mean-variance decomposition of the Hajek estimator.
 
