@@ -13,6 +13,9 @@
 #'   the RHS variables and the \code{blocking_variable}.
 #' @param bugs A \code{matrix} or \code{data.frame} with features (e.g., taxa) in
 #'   columns and samples in rows. Rownames must match \code{data}.
+#' @param sample_id Optional character scalar giving the column in \code{data}
+#'   that contains sample identifiers matching the distance matrix labels.
+#'   If \code{NULL}, rownames(data) are used.
 #' @param blocking_variable Character; name of the subject/cluster column in \code{data}.
 #' @param covariate_name Character; the name of the **binary** covariate used as treatment.
 #' @param permutations Integer; number of permutations for the null (default 999).
@@ -83,12 +86,15 @@
 hajek_repeat_measures <- function(formula,
                                   data,
                                   bugs,
+                                  sample_id = NULL, 
                                   blocking_variable = "subject",
                                   covariate_name,
                                   permutations   = 999,
                                   split_ratio    = 0.5,
                                   numerical_metadata = NULL,
                                   method         = "bray") {
+  data <- as.data.frame(data)
+  
   # --- 0. Checks ---
   if (missing(covariate_name))
     stop("Please provide covariate_name (the binary treatment/covariate).")
@@ -99,13 +105,37 @@ hajek_repeat_measures <- function(formula,
   environment(formula) <- environment()
   D <- lhs  # not used in the core, but kept for symmetry/validation
 
-  # --- 2. Check rownames agreement: data vs bugs (and vs D if dist) ---
-  if (!all(rownames(data) == rownames(bugs)))
-    stop("Row names of 'data' and 'bugs' must match (same samples, same order).")
-
-  if (inherits(D, "dist")) {
-    if (!all(rownames(as.matrix(D)) == rownames(data)))
-      stop("Row names of 'dist' object and 'data' must match.")
+  # --- 2. Align distance matrix samples with metadata ---
+  d_labels <- attr(D, "Labels")
+  if (is.null(d_labels))
+    stop("Distance object has no Labels attribute")
+  
+  if (is.null(sample_id)) {
+    # Use rownames(data)
+    if (is.null(rownames(data)))
+      stop("data has no rownames and sample_id is NULL")
+    
+    if (!all(d_labels %in% rownames(data)))
+      stop("Not all distance labels are present in rownames(data). Consider specifying sample_id")
+    
+    data <- data[d_labels, , drop = FALSE]
+    
+  } else {
+    # Use explicit sample_id column
+    if (!sample_id %in% colnames(data))
+      stop(sprintf("sample_id '%s' not found in data", sample_id))
+    
+    if (any(is.na(data[[sample_id]])))
+      stop("sample_id column contains NA values")
+    
+    if (!all(d_labels %in% data[[sample_id]]))
+      stop("Not all distance labels are present in data[[sample_id]]")
+    
+    if (anyDuplicated(data[[sample_id]]))
+      stop("sample_id column must contain unique sample identifiers")
+    
+    data <- data[match(d_labels, data[[sample_id]]), , drop = FALSE]
+    rownames(data) <- d_labels
   }
 
   # --- 3. Subset to blocking variable + RHS terms ---
