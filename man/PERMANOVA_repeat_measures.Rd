@@ -143,6 +143,7 @@ PERMANOVA_repeat_measures(
   center_R2         = TRUE
 )
 }
+}
 \seealso{
 \code{\link[vegan]{adonis2}}, \code{\link[permute]{how}}
 }
