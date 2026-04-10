@@ -18,136 +18,79 @@ hajek_repeat_measures(
 )
 }
 \arguments{
-\item{formula}{
-A model formula of the form \code{D ~ X1 + X2 + ...}. The left-hand side \code{D}
-must be a \code{\link{dist}} object; it is checked for alignment but not used
-directly in the Hajek computation.
-}
-
-\item{data}{
-A \code{data.frame} with one row per sample. Row names (or \code{sample_id})
-must match the row names of \code{bugs}. Must include the blocking variable
-and all right-hand-side terms in \code{formula}.
-}
-
-\item{bugs}{
-Matrix or \code{data.frame} of features (e.g., taxa), with rows corresponding
-to samples and columns to features. Row names must match \code{data}.
-}
-
-\item{sample_id}{
-Optional character scalar specifying a column in \code{data} that contains
-sample identifiers matching the distance matrix labels. If \code{NULL},
-\code{rownames(data)} are used.
-}
-
-\item{blocking_variable}{
-Character scalar giving the subject or cluster identifier for repeated
-measures.
-}
-
-\item{covariate_name}{
-Character scalar giving the name of the \emph{binary} covariate used as the
-treatment variable.
-}
-
-\item{permutations}{
-Integer giving the number of permutations used to generate the null distribution.
-}
-
-\item{split_ratio}{
-Proportion of subjects assigned to the training split (default 0.5).
-}
-
-\item{numerical_metadata}{
-Optional character vector of numeric covariates used to estimate propensity
-scores via logistic regression. If \code{NULL}, a constant propensity is used.
-}
-
-\item{method}{
-Distance used to construct the outcome: \code{"bray"} (default) or
-\code{"euclidean"}.
-}
+\item{formula}{Model formula of the form \code{D ~ X1 + X2 + ...}.}
+\item{data}{Sample-level metadata.}
+\item{bugs}{Matrix/data frame of features (samples × features).}
+\item{sample_id}{Optional sample ID column.}
+\item{blocking_variable}{Subject/cluster identifier.}
+\item{covariate_name}{Binary treatment variable.}
+\item{permutations}{Number of permutations.}
+\item{split_ratio}{Fraction of subjects for training.}
+\item{numerical_metadata}{Numeric covariates for propensity modeling.}
+\item{method}{\code{"bray"} or \code{"euclidean"}.}
 }
 \value{
-A list with components:
+A list containing:
 \itemize{
-  \item \code{observed}: Hajek estimate on the test set
-  \item \code{null_dist}: vector of permutation null estimates
-  \item \code{ratio}: absolute observed-to-null mean ratio
-  \item \code{z_score}: standardized effect size
-  \item \code{pval}: permutation p-value
+  \item \code{observed}
+  \item \code{null_dist}
+  \item \code{ratio}
+  \item \code{z_score}
+  \item \code{pval}
 }
 }
 \description{
-Implements a Hajek-style estimator for repeated-measures data using a
-subject-level train/test split. The procedure prevents leakage by computing
-reference centroids on training subjects and evaluating outcomes only on
-held-out test subjects.
-}
-\details{
-The method constructs a distance-like outcome defined as the distance from
-each test sample to the group-1 centroid estimated from training data.
-Permutation inference respects subject blocking via \code{permute::how()}.
-
-If \code{numerical_metadata} is supplied, propensity scores are estimated
-using logistic regression on the training set and predicted on the test set;
-otherwise a constant propensity is used.
+Implements a Hajek estimator for repeated-measures data using a
+subject-level train/test split to prevent information leakage.
 }
 \examples{
-## ------------------------------------------------------------
-## Minimal runnable example (fast; required by Bioconductor)
-## ------------------------------------------------------------
+## ---- minimal runnable example ----
 set.seed(1)
 
-n_subjects <- 8
+n_subjects <- 6
 n_rep <- 2
 N <- n_subjects * n_rep
 
 meta <- data.frame(
   subject = factor(rep(seq_len(n_subjects), each = n_rep)),
-  trt     = factor(rep(c("A", "B"), length.out = N)),
+  trt = factor(rep(c("A","B"), length.out = N)),
   row.names = paste0("id", seq_len(N))
 )
 
 bugs <- matrix(
-  rexp(N * 12),
+  rexp(N * 10),
   nrow = N,
-  dimnames = list(rownames(meta), paste0("f", seq_len(12)))
+  dimnames = list(rownames(meta), NULL)
 )
 
 D <- vegan::vegdist(bugs, method = "bray")
 
 hajek_repeat_measures(
-  formula        = D ~ trt,
-  data           = meta,
-  bugs           = bugs,
+  D ~ trt,
+  data = meta,
+  bugs = bugs,
   blocking_variable = "subject",
   covariate_name = "trt",
-  permutations   = 49,
-  split_ratio    = 0.5,
-  method         = "bray"
+  permutations = 49
 )
 
 \donttest{
-## ------------------------------------------------------------
-## Example with numeric metadata (logistic propensity)
-## ------------------------------------------------------------
+## ---- logistic-propensity version ----
 meta$X <- rnorm(N)
 
 hajek_repeat_measures(
-  formula            = D ~ trt + X,
-  data               = meta,
-  bugs               = bugs,
-  blocking_variable  = "subject",
-  covariate_name     = "trt",
+  D ~ trt + X,
+  data = meta,
+  bugs = bugs,
+  blocking_variable = "subject",
+  covariate_name = "trt",
   numerical_metadata = "X",
-  permutations       = 99,
-  split_ratio        = 0.5,
-  method             = "euclidean"
+  permutations = 99,
+  method = "euclidean"
 )
 }
+}
 \seealso{
-\code{\link[permute]{how}},
-\code{\link{PERMANOVA_repeat_measures}}
+\code{\link{hajek_repeat_measures_loc_and_disp}},
+\code{\link[permute]{how}}
 }
