@@ -2,7 +2,7 @@
 % Please edit documentation in R/hajek.R
 \name{hajek_repeat_measures_loc_and_disp}
 \alias{hajek_repeat_measures_loc_and_disp}
-\title{Hajek Decomposition into Location and Dispersion (Repeated Measures)}
+\title{Hajek Location and Dispersion Decomposition}
 \usage{
 hajek_repeat_measures_loc_and_disp(
   D,
@@ -18,88 +18,41 @@ hajek_repeat_measures_loc_and_disp(
 )
 }
 \arguments{
-\item{D}{
-Unused distance object, included for API symmetry with
-\code{hajek_repeat_measures()}.
-}
-
-\item{permute_within}{
-Data frame of covariates that vary within subjects or clusters. Rows correspond
-to samples.
-}
-
-\item{blocks}{
-Factor or vector defining subject or cluster membership for each sample.
-}
-
-\item{block_data}{
-Data frame of block-level covariates with one row per block.
-}
-
-\item{permutations}{
-Unused; included for API compatibility (default 0).
-}
-
-\item{split_ratio}{
-Proportion of subjects allocated to the training split (default 0.5).
-}
-
-\item{numerical_metadata}{
-Unused; included for API compatibility.
-}
-
-\item{bugs}{
-Matrix or \code{data.frame} of features (samples × features). Rows must align
-with metadata.
-}
-
-\item{method}{
-Distance used for the outcome construction: \code{"bray"} (default) or
-\code{"euclidean"}.
-}
-
-\item{covariate_name}{
-Character scalar giving the name of the \emph{binary} covariate defining groups.
-}
+\item{D}{Unused distance object (API symmetry).}
+\item{permute_within}{Within-block covariates.}
+\item{blocks}{Subject identifiers.}
+\item{block_data}{Block-level covariates.}
+\item{permutations}{Unused (API symmetry).}
+\item{split_ratio}{Training fraction.}
+\item{numerical_metadata}{Unused (API symmetry).}
+\item{bugs}{Feature matrix.}
+\item{method}{\code{"bray"} or \code{"euclidean"}.}
+\item{covariate_name}{Binary group variable.}
 }
 \value{
-A list with elements:
+A list containing:
 \itemize{
-  \item \code{observed_tau}: Hajek total effect on the test set
-  \item \code{observed_loc}: location component (mean shift)
-  \item \code{observed_disp}: dispersion component (variance change)
+  \item \code{observed_tau}
+  \item \code{observed_loc}
+  \item \code{observed_disp}
 }
 }
 \description{
-Computes a Hajek total effect and decomposes it into location and dispersion
-components for repeated-measures data using a subject-level train/test split.
-}
-\details{
-The function computes distances from test samples to the group-1 centroid
-estimated on training subjects. The total Hajek effect is decomposed into:
-
-\itemize{
-  \item \emph{Location}: squared distance between group centroids
-  \item \emph{Dispersion}: difference in total feature-space variance
-}
-
-The subject-level split prevents information leakage between training and test
-sets.
+Decomposes the Hajek effect into location (centroid shift) and
+dispersion (variance difference) components.
 }
 \examples{
-## ------------------------------------------------------------
-## Minimal runnable example (fast)
-## ------------------------------------------------------------
+## ---- minimal runnable example ----
 set.seed(1)
 
-n_subjects <- 6
+n_subjects <- 5
 n_rep <- 2
 N <- n_subjects * n_rep
 
 bugs <- matrix(
-  rnorm(N * 8),
+  rnorm(N * 6),
   nrow = N,
-  dimnames = list(paste0("s", seq_len(N)), paste0("f", seq_len(8)))
+  dimnames = list(paste0("s", seq_len(N)), NULL)
 )
 
 permute_within <- data.frame(
@@ -110,7 +63,7 @@ permute_within <- data.frame(
 blocks <- factor(rep(seq_len(n_subjects), each = n_rep))
 
 block_data <- data.frame(
-  trt = factor(sample(c("A", "B"), n_subjects, replace = TRUE)),
+  trt = factor(sample(c("A","B"), n_subjects, TRUE)),
   row.names = levels(blocks)
 )
 
@@ -121,17 +74,10 @@ hajek_repeat_measures_loc_and_disp(
   block_data = block_data,
   bugs = bugs,
   covariate_name = "trt",
-  split_ratio = 0.5,
   method = "euclidean"
 )
-
-\donttest{
-## ------------------------------------------------------------
-## Typical usage after hajek_repeat_measures()
-## ------------------------------------------------------------
-# See hajek_repeat_measures() and the package vignette for
-# realistic microbiome-based workflows.
 }
 \seealso{
 \code{\link{hajek_repeat_measures}}
 }
+``
