@@ -7,68 +7,141 @@
 PERMANOVA_repeat_measures(
   formula,
   data,
+  sample_id = NULL,
   blocking_variable = "subject",
   permutations = 999,
-  na.rm = FALSE
+  na.rm = FALSE,
+  center_R2 = FALSE
 )
 }
 \arguments{
-\item{formula}{A model formula of the form \code{D ~ X1 + X2 + ...}, where
-\code{D} is a \code{\link{dist}} object compatible with \code{vegan::adonis2}.}
+\item{formula}{
+A model formula of the form \code{D ~ X1 + X2 + ...}, where \code{D} is a
+\code{\link{dist}} object compatible with \code{vegan::adonis2}.
+}
 
-\item{data}{A \code{data.frame} with rownames matching the distance object and
-columns for the RHS formula terms and the \code{blocking_variable}.}
+\item{data}{
+A \code{data.frame} with row names or a \code{sample_id} column matching the
+labels of the distance object. Columns must include all right-hand-side terms
+in \code{formula} and the blocking variable.
+}
 
-\item{blocking_variable}{Character scalar; column in \code{data} defining the
-subject/cluster for repeated measures (default: \code{"subject"}).}
+\item{sample_id}{
+Optional character scalar giving the column name in \code{data} that contains
+sample identifiers matching the distance matrix labels. If \code{NULL}
+(default), \code{rownames(data)} are used.
+}
 
-\item{permutations}{Integer; number of permutations for the test (default 999).}
+\item{blocking_variable}{
+Character scalar giving the column in \code{data} defining the
+subject or cluster for repeated measures (default: \code{"subject"}).
+}
 
-\item{na.rm}{Logical; if \code{TRUE}, samples with any missing metadata are dropped
-in a block-aware manner; otherwise an error is thrown if any NA are present.}
+\item{permutations}{
+Integer giving the number of permutations used to construct the null
+distribution (default: 999).
+}
+
+\item{na.rm}{
+Logical; if \code{TRUE}, samples with missing metadata are removed in a
+block-aware manner. If \code{FALSE}, missing values cause an error.
+}
+
+\item{center_R2}{
+Logical; if \code{TRUE}, subtracts the mean of the permutation null
+R\eqn{^2} distribution from the observed R\eqn{^2} for each model term,
+returning an additional \code{R2_centered} column.
+}
 }
 \value{
-A \code{vegan::adonis} table (from \code{adonis2}) with an added
-\code{Pr(>F)} column computed from the custom null and an optional
-\code{na.removed} attribute if \code{na.rm=TRUE}. A descriptive \code{"heading"}
-attribute is also added.
+A \code{vegan::adonis2} table with an added permutation-based
+\code{Pr(>F)} column. A descriptive \code{"heading"} attribute is included.
+
+If \code{center_R2 = TRUE}, an additional \code{R2_centered} column is present,
+and the mean null R\eqn{^2} values are stored in the
+\code{"null_means_R2"} attribute. If \code{na.rm = TRUE}, the number of removed
+samples is stored in the \code{na.removed} attribute.
 }
 \description{
-A convenience wrapper to run a block-aware permutation test for adonis
-under a reduced model, preserving subject/cluster structure. Internally uses
-\code{vegan::adonis2} and \code{permute} to create within-block
-permutations and between-block shuffles of static (block-level) covariates.
+A convenience wrapper for performing PERMANOVA with repeated measures using
+block-aware permutations. The method preserves subject- or cluster-level
+structure by permuting within blocks while shuffling static block-level
+covariates across blocks.
 }
 \details{
-This function separates metadata into two groups:
-variables that vary within blocks (subjects) and variables that are static
-across all samples of the same block. During permutation, the within-block
-variables are permuted respecting the block structure, and the static
-block-level variables are shuffled across block identities and then reassigned
-to samples by their block membership. This yields a reduced-model style
-permutation respecting repeated measures.
+Metadata are separated into covariates that vary within blocks (e.g., time- or
+sample-varying exposures) and covariates that are constant within blocks
+(e.g., subject-level characteristics). During permutation, within-block
+variables are permuted while respecting block membership, and block-level
+variables are shuffled across blocks and reassigned to samples by block.
+
+This yields a reduced-model style permutation test appropriate for
+repeated-measures designs, such as longitudinal or clustered microbiome data.
 }
 \examples{
-\dontrun{
-  library(vegan)
-  set.seed(1)
-  # Toy example
-  n_subj <- 10
-  reps   <- 3
-  N      <- n_subj * reps
-  subj   <- factor(rep(paste0("S", 1:n_subj), each = reps))
-  X      <- rnorm(N)
-  Z      <- rep(rnorm(n_subj), each = reps) # static per subject
-  data   <- data.frame(subject = subj, X = X, Z = Z, row.names = paste0("id", 1:N))
+## ------------------------------------------------------------
+## Minimal runnable example (fast; required by Bioconductor)
+## ------------------------------------------------------------
+set.seed(1)
 
-  mat <- matrix(rnorm(N * 20), nrow = N, dimnames = list(rownames(data), NULL))
-  D   <- vegdist(mat, method = "bray")
+# Repeated-measures metadata
+n_subjects <- 6
+n_rep      <- 2
+N          <- n_subjects * n_rep
 
-  # Test X after accounting for Z, blocking by subject
-  PERMANOVA_repeat_measures(D ~ X + Z, data = data,
-                            blocking_variable = "subject", permutations = 99)
-}
+meta <- data.frame(
+  subject  = factor(rep(seq_len(n_subjects), each = n_rep)),
+  exposure = factor(rep(c("a", "b"), length.out = N)),
+  row.names = paste0("sample", seq_len(N))
+)
 
+# Small feature matrix and Bray--Curtis distance
+mat <- matrix(
+  rnorm(N * 6),
+  nrow = N,
+  dimnames = list(rownames(meta), NULL)
+)
+
+D <- vegan::vegdist(mat, method = "bray")
+
+PERMANOVA_repeat_measures(
+  formula           = D ~ exposure,
+  data              = meta,
+  blocking_variable = "subject",
+  permutations      = 49
+)
+
+\donttest{
+## ------------------------------------------------------------
+## Larger example resembling vignette-style usage
+## ------------------------------------------------------------
+n_subjects <- 20
+n_rep      <- 3
+N          <- n_subjects * n_rep
+
+meta <- data.frame(
+  subject      = factor(rep(paste0("S", seq_len(n_subjects)), each = n_rep)),
+  exposure_num = unlist(
+    lapply(
+      split(seq_len(N), rep(seq_len(n_subjects), each = n_rep)),
+      function(idx) rbinom(length(idx), 1, prob = sample(c(0.2, 0.8), 1))
+    )
+  ),
+  row.names = paste0("id", seq_len(N))
+)
+
+mat <- matrix(rnorm(N * 15), nrow = N,
+              dimnames = list(rownames(meta), NULL))
+
+D <- vegan::vegdist(mat, method = "bray")
+
+PERMANOVA_repeat_measures(
+  formula           = D ~ exposure_num,
+  data              = meta,
+  blocking_variable = "subject",
+  permutations      = 99,
+  center_R2         = TRUE
+)
 }
 \seealso{
 \code{\link[vegan]{adonis2}}, \code{\link[permute]{how}}
