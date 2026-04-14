@@ -1,5 +1,6 @@
 #' Hajek Estimator for Repeated Measures (Subject-Respecting Split)
 #'
+#' @description
 #' Implements a subject-level train/test split for a binary covariate and computes a
 #' Hajek estimator on the test set. The distance-like outcome \eqn{Y} is constructed as
 #' the (Bray-Curtis or Euclidean) distance of each test sample to the centroid of group 1
