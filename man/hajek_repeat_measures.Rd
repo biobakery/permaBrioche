@@ -72,38 +72,58 @@ If \code{numerical_metadata} is \code{NULL}, a constant propensity (\eqn{e}) equ
 to the mean of \code{T} in the test set is used; otherwise a logit model
 \code{T ~ numerical_metadata} is fitted on the training set and predicted on test.
 }
+```r
 \examples{
 \dontrun{
   set.seed(1)
   n_subj <- 12
   reps   <- 2
   N      <- n_subj * reps
-  subj   <- factor(rep(paste0("S", 1:n_subj), each = reps))
-  trt    <- factor(rep(rep(c("A", "B"), length.out = n_subj), each = reps))
-  X      <- rnorm(N)
-  data   <- data.frame(subject = subj, trt = trt, X = X,
-                       row.names = paste0("id", 1:N))
 
-  bugs <- matrix(rexp(N * 50), nrow = N,
-                 dimnames = list(rownames(data), paste0("f", 1:50)))
+  subj <- factor(rep(paste0("S", 1:n_subj), each = reps))
+  trt  <- factor(rep(rep(c("A", "B"), length.out = n_subj), each = reps))
+  X    <- rnorm(N)
+
+  data <- data.frame(
+    subject  = subj,
+    trt      = trt,
+    X        = X,
+    row.names = paste0("id", 1:N)
+  )
+
+  bugs <- matrix(
+    rexp(N * 50),
+    nrow = N,
+    dimnames = list(rownames(data), paste0("f", 1:50))
+  )
+
+  ## Distance object with labels matching rownames(data) and rownames(bugs)
+  D <- vegan::vegdist(bugs, method = "bray")
 
   # Constant propensity version
-  hajek_repeat_measures(D ~ trt + X, data = data, bugs = bugs,
-                        blocking_variable = "subject",
-                        covariate_name = "trt",
-                        permutations = 99,
-                        split_ratio = 0.6,
-                        numerical_metadata = NULL,
-                        method = "bray")
+  hajek_repeat_measures(
+    D ~ trt + X,
+    data              = data,
+    bugs              = bugs,
+    blocking_variable = "subject",
+    covariate_name    = "trt",
+    permutations      = 99,
+    split_ratio       = 0.6,
+    numerical_metadata = NULL,
+    method            = "bray"
+  )
 
   # Logistic-e version using numeric metadata X
-  hajek_repeat_measures(D ~ trt + X, data = data, bugs = bugs,
-                        blocking_variable = "subject",
-                        covariate_name = "trt",
-                        permutations = 99,
-                        split_ratio = 0.6,
-                        numerical_metadata = "X",
-                        method = "euclidean")
+  hajek_repeat_measures(
+    D ~ trt + X,
+    data              = data,
+    bugs              = bugs,
+    blocking_variable = "subject",
+    covariate_name    = "trt",
+    permutations      = 99,
+    split_ratio       = 0.6,
+    numerical_metadata = "X",
+    method            = "euclidean"
+  )
 }
-
 }
