@@ -72,7 +72,6 @@ If \code{numerical_metadata} is \code{NULL}, a constant propensity (\eqn{e}) equ
 to the mean of \code{T} in the test set is used; otherwise a logit model
 \code{T ~ numerical_metadata} is fitted on the training set and predicted on test.
 }
-```r
 \examples{
 \dontrun{
   set.seed(1)
