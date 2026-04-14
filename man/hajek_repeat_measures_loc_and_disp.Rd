@@ -2,7 +2,7 @@
 % Please edit documentation in R/hajek.R
 \name{hajek_repeat_measures_loc_and_disp}
 \alias{hajek_repeat_measures_loc_and_disp}
-\title{Hajek Location and Dispersion Decomposition}
+\title{Hajek with Location and Dispersion (Subject-Respecting Split)}
 \usage{
 hajek_repeat_measures_loc_and_disp(
   D,
@@ -18,66 +18,42 @@ hajek_repeat_measures_loc_and_disp(
 )
 }
 \arguments{
-\item{D}{Unused distance object (API symmetry).}
-\item{permute_within}{Within-block covariates.}
-\item{blocks}{Subject identifiers.}
-\item{block_data}{Block-level covariates.}
-\item{permutations}{Unused (API symmetry).}
-\item{split_ratio}{Training fraction.}
-\item{numerical_metadata}{Unused (API symmetry).}
-\item{bugs}{Feature matrix.}
-\item{method}{\code{"bray"} or \code{"euclidean"}.}
-\item{covariate_name}{Binary group variable.}
+\item{D}{Unused in the computation (kept for API symmetry).}
+
+\item{permute_within}{Data frame of variables that vary within blocks.}
+
+\item{blocks}{Factor or vector of subject/cluster ids (one per sample).}
+
+\item{block_data}{Data frame of static block-level variables (rows = block levels).}
+
+\item{permutations}{Not used (kept for API symmetry; default 0).}
+
+\item{split_ratio}{Proportion of subjects in training (default 0.5).}
+
+\item{numerical_metadata}{Unused (kept for API symmetry).}
+
+\item{bugs}{Matrix/data.frame of features, rows=samples, cols=features.}
+
+\item{method}{"bray" (default) or "euclidean" for the Y outcome.}
+
+\item{covariate_name}{Character; binary covariate used to form groups.}
 }
 \value{
-A list containing:
+A list with
 \itemize{
-  \item \code{observed_tau}
-  \item \code{observed_loc}
-  \item \code{observed_disp}
+\item \code{observed_tau}: Hajek total effect (test set)
+\item \code{observed_loc}: location component (difference of squared distances to centroid)
+\item \code{observed_disp}: dispersion component (difference of traces of covariance)
 }
 }
 \description{
-Decomposes the Hajek effect into location (centroid shift) and
-dispersion (variance difference) components.
+Computes (i) the Hajek total effect on a distance-like outcome to the group-1
+centroid and (ii) decompositions for location and dispersion in feature space,
+using a subject-level train/test split that prevents leakage.
 }
 \examples{
-## ---- minimal runnable example ----
-set.seed(1)
-
-n_subjects <- 5
-n_rep <- 2
-N <- n_subjects * n_rep
-
-bugs <- matrix(
-  rnorm(N * 6),
-  nrow = N,
-  dimnames = list(paste0("s", seq_len(N)), NULL)
-)
-
-permute_within <- data.frame(
-  dummy = rep(0, N),
-  row.names = rownames(bugs)
-)
-
-blocks <- factor(rep(seq_len(n_subjects), each = n_rep))
-
-block_data <- data.frame(
-  trt = factor(sample(c("A","B"), n_subjects, TRUE)),
-  row.names = levels(blocks)
-)
-
-hajek_repeat_measures_loc_and_disp(
-  D = NULL,
-  permute_within = permute_within,
-  blocks = blocks,
-  block_data = block_data,
-  bugs = bugs,
-  covariate_name = "trt",
-  method = "euclidean"
-)
+\dontrun{
+  # See examples in hajek_repeat_measures(); after splitting, call:
+  # hajek_repeat_measures_loc_and_disp(...)
 }
-\seealso{
-\code{\link{hajek_repeat_measures}}
 }
-``
