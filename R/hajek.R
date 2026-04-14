@@ -45,37 +45,52 @@
 #' \code{T ~ numerical_metadata} is fitted on the training set and predicted on test.
 #'
 #' @examples
-#' \dontrun{
-#'   set.seed(1)
-#'   n_subj <- 12
-#'   reps   <- 2
-#'   N      <- n_subj * reps
-#'   subj   <- factor(rep(paste0("S", 1:n_subj), each = reps))
-#'   trt    <- factor(rep(rep(c("A", "B"), length.out = n_subj), each = reps))
-#'   X      <- rnorm(N)
-#'   data   <- data.frame(subject = subj, trt = trt, X = X,
-#'                        row.names = paste0("id", 1:N))
+#' ## ---- minimal runnable example ----
+#' set.seed(1)
 #'
-#'   bugs <- matrix(rexp(N * 50), nrow = N,
-#'                  dimnames = list(rownames(data), paste0("f", 1:50)))
+#' n_subj <- 6
+#' reps   <- 2
+#' N      <- n_subj * reps
 #'
-#'   # Constant propensity version
-#'   hajek_repeat_measures(D ~ trt + X, data = data, bugs = bugs,
-#'                         blocking_variable = "subject",
-#'                         covariate_name = "trt",
-#'                         permutations = 99,
-#'                         split_ratio = 0.6,
-#'                         numerical_metadata = NULL,
-#'                         method = "bray")
+#' subject <- factor(rep(seq_len(n_subj), each = reps))
+#' trt     <- factor(rep(c("A","B"), length.out = N))
+#' X       <- rnorm(N)
 #'
-#'   # Logistic-e version using numeric metadata X
-#'   hajek_repeat_measures(D ~ trt + X, data = data, bugs = bugs,
-#'                         blocking_variable = "subject",
-#'                         covariate_name = "trt",
-#'                         permutations = 99,
-#'                         split_ratio = 0.6,
-#'                         numerical_metadata = "X",
-#'                         method = "euclidean")
+#' meta <- data.frame(
+#'   subject = subject,
+#'   trt = trt,
+#'   X = X,
+#'   row.names = paste0("id", seq_len(N))
+#' )
+#'
+#' bugs <- matrix(
+#'   rexp(N * 10),
+#'   nrow = N,
+#'   dimnames = list(rownames(meta), NULL)
+#' )
+#'
+#' D <- vegan::vegdist(bugs, method = "bray")
+#'
+#' hajek_repeat_measures(
+#'   D ~ trt,
+#'   data = meta,
+#'   bugs = bugs,
+#'   blocking_variable = "subject",
+#'   covariate_name = "trt",
+#'   permutations = 49
+#' )
+#'
+#' \donttest{
+#'   ## logistic-propensity version
+#'   hajek_repeat_measures(
+#'     D ~ trt + X,
+#'     data = meta,
+#'     bugs = bugs,
+#'     blocking_variable = "subject",
+#'     covariate_name = "trt",
+#'     numerical_metadata = "X",
+#'     permutations = 99
+#'   )
 #' }
 #'
 #' @import vegan
@@ -537,10 +552,22 @@ hajek_repeat_measures_core <- function(D,
 #' }
 #'
 #' @examples
-#' \dontrun{
-#'   # See examples in hajek_repeat_measures(); after splitting, call:
-#'   # hajek_repeat_measures_loc_and_disp(...)
-#' }
+#' ## ---- minimal runnable sketch ----
+#' set.seed(1)
+#' n <- 4
+#' permute_within <- data.frame(trt = factor(rep(c("A","B"), length.out = n)))
+#' blocks <- factor(rep(1:2, each = 2))
+#' block_data <- data.frame(Z = c(0, 1))
+#' bugs <- matrix(rexp(n * 5), nrow = n)
+#'
+#' hajek_repeat_measures_loc_and_disp(
+#'   D = NULL,
+#'   permute_within = permute_within,
+#'   blocks = blocks,
+#'   block_data = block_data,
+#'   bugs = bugs,
+#'   covariate_name = "trt"
+#' )
 #' @export
 hajek_repeat_measures_loc_and_disp <- function(D,
                                                permute_within,
