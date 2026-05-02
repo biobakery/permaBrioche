@@ -1,9 +1,8 @@
-
 # Vignette
 
 You are currently reading the GitHub README, not the vignette :)
 
-To read the full vignette (recommended), un the following **in R**:
+To read the full vignette after installation (recommended), run the following **in R**:
 
 ```r
 browseVignettes("permabrioche")
