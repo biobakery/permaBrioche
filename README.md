@@ -7,34 +7,18 @@ To read the full vignette after installation (recommended), run the following **
 ```r
 browseVignettes("permabrioche")
 ```
-or open it directly with:
-```r
-vignette("permaBrioche", package = "permabrioche")
-```
+## permaBrioche
 
-If the vignette is not available, install the package with vignettes enabled:
-```r
-devtools::install_github("biobakery/permabrioche", build_vignettes = TRUE)
-```
+The goal of permaBrioche is to support distance‑based hypothesis testing and effect‑size estimation for microbiome community data. It addresses known limitations of standard PERMANOVA by providing confounding‑aware permutation schemes for repeated‑measures designs and also a Hájek‑style estimator with interpretable effect sizes, enabling well‑calibrated inference.
 
-## Introduction
-
-> This page gives details concerning guiding principles and formatting required for Bioconductor packages. Also see [Official Bioconductor Package Guidelines](https://bioconductor.org/developers/package-guidelines/) for more information. 
-## Requirements
-
-- R-development version can be downloaded using the links below: 
-    - [Source](https://stat.ethz.ch/R/daily/)
-    - [macOS](https://mac.r-project.org/)
-    - [Windows](https://cran.r-project.org/bin/windows/base/rdevel.html)
-    
-- #### R Studio (recommended) 
-	- Direct to the link [HERE](https://rstudio.com/products/rstudio/download/) to get the suitable version of R studio based on the your Operating system. 
-	- After the installation is complete, configure a couple of things so that your code will be formatted the way that we prefer it for Bioconductor. 
-		-  Set the column width marker to 80 columns. You can find this in the ‘Tools’ menu if you select the ‘Global Options…’ and then look at the ‘Code Editing’ panel. Then make sure that you click the ‘show margin’ option and that it is set to 80 columns. This will help you see if your lines are too long.
-    
-		-   Second set up the tab to be 4 spaces. You can do this right above where you set the column width marker for 80.   
-     
 ## Installation
+
+You can install permabrioche from GitHub with:
+
+``` r
+remotes::install_github("biobakery/permabrioche", build_vignettes = TRUE)
+```
+
 
 > Getting started with the Bioconductor Template: 
 - Click on "**Use this Template**" button and fill out the new repository informations (name/description/access). 
