@@ -62,24 +62,44 @@ to samples by their block membership. This yields a reduced-model style
 permutation respecting repeated measures.
 }
 \examples{
-\dontrun{
-  library(vegan)
-  set.seed(1)
-  # Toy example
-  n_subj <- 10
-  reps   <- 3
-  N      <- n_subj * reps
-  subj   <- factor(rep(paste0("S", 1:n_subj), each = reps))
-  X      <- rnorm(N)
-  Z      <- rep(rnorm(n_subj), each = reps) # static per subject
-  data   <- data.frame(subject = subj, X = X, Z = Z, row.names = paste0("id", 1:N))
+## ---- minimal runnable example ----
+set.seed(1)
 
-  mat <- matrix(rnorm(N * 20), nrow = N, dimnames = list(rownames(data), NULL))
-  D   <- vegdist(mat, method = "bray")
+n_subj <- 6
+reps   <- 2
+N      <- n_subj * reps
 
-  # Test X after accounting for Z, blocking by subject
-  PERMANOVA_repeat_measures(D ~ X + Z, data = data,
-                            blocking_variable = "subject", permutations = 99)
+subject <- factor(rep(seq_len(n_subj), each = reps))
+X <- rnorm(N)
+Z <- rep(rnorm(n_subj), each = reps)
+
+meta <- data.frame(
+  subject = subject,
+  X = X,
+  Z = Z,
+  row.names = paste0("id", seq_len(N))
+)
+
+mat <- matrix(rnorm(N * 5), nrow = N,
+              dimnames = list(rownames(meta), NULL))
+
+D <- vegan::vegdist(mat, method = "bray")
+
+PERMANOVA_repeat_measures(
+  D ~ X + Z,
+  data = meta,
+  blocking_variable = "subject",
+  permutations = 49
+)
+
+\donttest{
+## ---- larger example ----
+PERMANOVA_repeat_measures(
+  D ~ X,
+  data = meta,
+  blocking_variable = "subject",
+  permutations = 99
+)
 }
 
 }

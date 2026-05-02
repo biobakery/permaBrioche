@@ -73,56 +73,52 @@ to the mean of \code{T} in the test set is used; otherwise a logit model
 \code{T ~ numerical_metadata} is fitted on the training set and predicted on test.
 }
 \examples{
-\dontrun{
-  set.seed(1)
-  n_subj <- 12
-  reps   <- 2
-  N      <- n_subj * reps
+## ---- minimal runnable example ----
+set.seed(1)
 
-  subj <- factor(rep(paste0("S", 1:n_subj), each = reps))
-  trt  <- factor(rep(rep(c("A", "B"), length.out = n_subj), each = reps))
-  X    <- rnorm(N)
+n_subj <- 6
+reps   <- 2
+N      <- n_subj * reps
 
-  data <- data.frame(
-    subject  = subj,
-    trt      = trt,
-    X        = X,
-    row.names = paste0("id", 1:N)
-  )
+subject <- factor(rep(seq_len(n_subj), each = reps))
+trt     <- factor(rep(c("A","B"), length.out = N))
+X       <- rnorm(N)
 
-  bugs <- matrix(
-    rexp(N * 50),
-    nrow = N,
-    dimnames = list(rownames(data), paste0("f", 1:50))
-  )
+meta <- data.frame(
+  subject = subject,
+  trt = trt,
+  X = X,
+  row.names = paste0("id", seq_len(N))
+)
 
-  ## Distance object with labels matching rownames(data) and rownames(bugs)
-  D <- vegan::vegdist(bugs, method = "bray")
+bugs <- matrix(
+  rexp(N * 10),
+  nrow = N,
+  dimnames = list(rownames(meta), NULL)
+)
 
-  # Constant propensity version
+D <- vegan::vegdist(bugs, method = "bray")
+
+hajek_repeat_measures(
+  D ~ trt,
+  data = meta,
+  bugs = bugs,
+  blocking_variable = "subject",
+  covariate_name = "trt",
+  permutations = 49
+)
+
+\donttest{
+  ## logistic-propensity version
   hajek_repeat_measures(
     D ~ trt + X,
-    data              = data,
-    bugs              = bugs,
+    data = meta,
+    bugs = bugs,
     blocking_variable = "subject",
-    covariate_name    = "trt",
-    permutations      = 99,
-    split_ratio       = 0.6,
-    numerical_metadata = NULL,
-    method            = "bray"
-  )
-
-  # Logistic-e version using numeric metadata X
-  hajek_repeat_measures(
-    D ~ trt + X,
-    data              = data,
-    bugs              = bugs,
-    blocking_variable = "subject",
-    covariate_name    = "trt",
-    permutations      = 99,
-    split_ratio       = 0.6,
+    covariate_name = "trt",
     numerical_metadata = "X",
-    method            = "euclidean"
+    permutations = 99
   )
 }
+
 }

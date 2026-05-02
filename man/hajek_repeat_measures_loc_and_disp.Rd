@@ -52,8 +52,20 @@ centroid and (ii) decompositions for location and dispersion in feature space,
 using a subject-level train/test split that prevents leakage.
 }
 \examples{
-\dontrun{
-  # See examples in hajek_repeat_measures(); after splitting, call:
-  # hajek_repeat_measures_loc_and_disp(...)
-}
+## ---- minimal runnable sketch ----
+set.seed(1)
+n <- 4
+permute_within <- data.frame(trt = factor(rep(c("A","B"), length.out = n)))
+blocks <- factor(rep(1:2, each = 2))
+block_data <- data.frame(Z = c(0, 1))
+bugs <- matrix(rexp(n * 5), nrow = n)
+
+hajek_repeat_measures_loc_and_disp(
+  D = NULL,
+  permute_within = permute_within,
+  blocks = blocks,
+  block_data = block_data,
+  bugs = bugs,
+  covariate_name = "trt"
+)
 }
