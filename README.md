@@ -1,4 +1,23 @@
 
+# Vignette
+
+You are reading the GitHub README, not the vignette :)
+
+To read the full vignette (recommended), run:
+
+```r
+browseVignettes("permabrioche")
+```
+or open it directly with:
+```r
+vignette("permaBrioche", package = "permabrioche")
+```
+
+If the vignette is not available, install the package with vignettes enabled:
+```r
+devtools::install_github("biobakery/permabrioche", build_vignettes = TRUE)
+```
+
 ## Introduction
 
 > This page gives details concerning guiding principles and formatting required for Bioconductor packages. Also see [Official Bioconductor Package Guidelines](https://bioconductor.org/developers/package-guidelines/) for more information. 
