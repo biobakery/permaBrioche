@@ -1,11 +1,4 @@
 
-
-##### [Replace the contents of this README.MD file with the appropriate "Users manual" needed for the tool]  
-  
-   
-   
-# Bioconductor Package Template
-
 ## Introduction
 
 > This page gives details concerning guiding principles and formatting required for Bioconductor packages. Also see [Official Bioconductor Package Guidelines](https://bioconductor.org/developers/package-guidelines/) for more information. 
