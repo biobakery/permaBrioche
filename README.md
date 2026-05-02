@@ -1,7 +1,7 @@
 
 # Vignette
 
-You are reading the GitHub README, not the vignette :)
+You are currently reading the GitHub README, not the vignette :)
 
 To read the full vignette (recommended), run:
 
