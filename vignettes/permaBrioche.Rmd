@@ -24,7 +24,7 @@ using **permaBrioche**. Specifically, we show:
 
 ***
 
-# Data
+# 0. Data
 ## Loading the HMP-based data for this vignette
 
 ```{r}
