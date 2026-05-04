@@ -1,527 +1,321 @@
 ---
-title: "permabrioche vignette: HMP-Based Examples"
+title: "permaBrioche: A Beginner’s Guide to Repeated-Measures PERMANOVA"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{permabrioche (HMP-based simulated example)}
+  %\VignetteIndexEntry{permabrioche: beginner repeated-measures workflow}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
-header-includes:
-  - |
-    <style>
-      h1.title {
-        color: "darkred";
-      }
-    </style>
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse  = TRUE,
-  comment   = "#>",
-  fig.align = "center"
-)
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 set.seed(1)
 ```
 
 # Overview
 
-This vignette illustrates how to use **permabrioche** for repeated-measures
-PERMANOVA on microbiome data derived from the Human Microbiome Project (HMP).
+This vignette explains how to analyze **repeated‑measures microbiome data**
+using **permaBrioche**. Specifically, we show:
 
-We:
+1.  how to use `PERMANOVA_repeat_measures()`
+2.  how to obtain a **null‑centered $$R^2$$**
+3.  how to use `hajek_repeat_measures()`
+4.  how to decompose the Hajek effect into **location** and **dispersion**
 
-1. load an HMP-based microbiome dataset (`d`, `bugs`) with repeated measures,  
-2. construct a **within-subject (variant) varying binary exposure**,  
-3. compare:
-   - a PERMANOVA implementation that ignores subject,
-   - our subject-aware PERMANOVA using `PERMANOVA_repeat_measures()`,
-   - our subject-aware Hajek estimator using `hajek_repeat_measures()`,
-4. run a **small simulation study** that uses the HMP data as a base:
-   - a **null** scenario (no spiked effect of exposure),
-   - an **alternative** scenario (spiked microbiome effect).
-5. Demonstrate the mean-variance decomposition of the Hajek estimator.
+***
 
-# Setup and data
+# 0. Loading the HMP-based data for this vignette
 
-```{r setup, message = FALSE, warning = FALSE}
+```{r}
 library(permabrioche)
-library(dplyr)
-library(ggplot2)
+library(vegan)
 
-set.seed(1)
+load(system.file("extdata", "d_hmp.Rda", package = "permabrioche"))    # loads d
+load(system.file("extdata", "bugs_hmp.Rda", package = "permabrioche")) # loads bugs
 
-# -----------------------------------------------------------
-# Load HMP-based microbiome data (metadata `d`, counts `bugs`)
-# -----------------------------------------------------------
-d_path    <- system.file("extdata", "d_hmp.Rda",    package = "permabrioche")
-bugs_path <- system.file("extdata", "bugs_hmp.Rda", package = "permabrioche")
-obj_d    <- load(d_path)
-obj_bugs <- load(bugs_path)
-# Explicitly extract first object from each Rda
-d    <- get(obj_d[1])
-bugs <- get(obj_bugs[1])
-rm(obj_d, obj_bugs)
+meta <- d              # rename metadata for clarity
+bugs <- bugs[, -1]     # drop redundant 'sample' column
 
-# Drop the unnecessary "sample" column from bugs:
-bugs      <- bugs[,-1]
+# (Good practice: Ensure alignment between metadata and feature matrix)
+rownames(meta) <- meta$sample
+stopifnot(identical(rownames(meta), rownames(bugs)))
 
-# Keep originals
-d_orig    <- d
-bugs_orig <- bugs
+```
+***
 
-str(d_orig[, c("subject", "sample")])
-dim(bugs_orig)
+# 1. The basic data structure
+
+All functions in **permaBrioche** require three aligned objects:
+
+## (a) Sample‑level metadata
+
+A `data.frame` with **one row per sample**, containing at least:
+
+*   `sample` – unique sample ID
+*   `subject` – repeated‑measures (blocking) ID
+*   `exposure` – a binary covariate of interest
+
+```{r}
+head(meta)
 ```
 
-We assume:
+Each subject may appear in multiple rows.
 
-- `d` contains at least `subject` (repeated-measures ID) and `sample`,  
-- `bugs` is a matrix or data frame of taxa features with rownames equal to
-  `d$sample`
+***
 
-# A helper: HMP-based repeated-measures simulator
+## (b) Feature matrix (`bugs`)
 
-We now define a simple simulator that:
+A matrix of features (e.g., taxa abundances):
 
-- selects a subset of subjects and samples from the HMP data,  
-- creates a **within-subject (variant) varying binary exposure**,  
-- **spikes some taxa** for exposed samples,
-- returns metadata, spiked microbiome data, and a Bray–Curtis 'dist' object.
+*   rows = samples
+*   columns = features
+*   **rownames must match `meta$sample`**
 
-```{r simulator, warning = FALSE}
-simulate_hmp_microbiome <- function(
-  n_subj           = 30,
-  max_samples_subj = 10,
-  frac_spike_taxa  = 0.1,
-  effect_size      = 0,   # 0 = null, >0 = alternative
-  seed             = NULL
-) {
-  if (!is.null(seed)) set.seed(seed)
-
-  stopifnot(all(c("subject", "sample") %in% colnames(d_orig)))
-  stopifnot(identical(rownames(bugs_orig), d_orig$sample))
-
-  # -----------------------------
-  # 1. Select subset of subjects and samples
-  # -----------------------------
-  subj_all <- unique(d_orig$subject)
-
-  if (length(subj_all) < n_subj) {
-    warning("Requested n_subj > available; using all subjects.")
-    subj_use <- subj_all
-  } else {
-    subj_use <- sample(subj_all, n_subj, replace = FALSE)
-  }
-
-  d_sub <- d_orig[d_orig$subject %in% subj_use, ]
-
-  # Limit to at most max_samples_subj per subject
-  d_sub <- d_sub %>%
-    group_by(subject) %>%
-    slice_head(n = max_samples_subj) %>%
-    ungroup()
-
-  bugs_sub <- bugs_orig[match(d_sub$sample, rownames(bugs_orig)), , drop = FALSE]
-  stopifnot(identical(rownames(bugs_sub), d_sub$sample))
-
-  rownames(d_sub) <- d_sub$sample
-
-  # -----------------------------
-  # 2. Construct within-subject binary exposure
-  # -----------------------------
-  # For each subject, sample a subject-specific exposure probability p_s,
-  # then draw a 0/1 exposure per sample with probability p_s.
-  subj_list <- unique(d_sub$subject)
-  exposure_vec <- numeric(nrow(d_sub))
-
-  for (s in subj_list) {
-    idx <- which(d_sub$subject == s)
-    # Subjects are either mostly 0 or mostly 1
-    p_s <- sample(c(0.2, 0.8), size = 1)
-    exposure_vec[idx] <- rbinom(length(idx), size = 1, prob = p_s)
-  }
-
-  d_sub$exposure_num <- exposure_vec
-  d_sub$exposure <- factor(exposure_vec, levels = 0:1, labels = c("a", "b"))
-
-  # -----------------------------
-  # 3. Spike taxa for the alternative (effect_size > 0)
-  # -----------------------------
-  bugs_spiked <- as.matrix(bugs_sub)
-  n_taxa      <- ncol(bugs_spiked)
-
-  n_spike_taxa <- max(1L, round(frac_spike_taxa * n_taxa))
-  spike_taxa   <- sample(colnames(bugs_spiked), n_spike_taxa)
-
-  if (effect_size > 0) {
-    # multiplicative spike on spike_taxa for exposed samples
-    exposed_idx <- which(d_sub$exposure_num == 1)
-    if (length(exposed_idx) > 0) {
-      bugs_spiked[exposed_idx, spike_taxa] <-
-        bugs_spiked[exposed_idx, spike_taxa] * (1 + effect_size)
-    }
-
-    # small subject-level random shift, to mimic subject variation
-    for (s in subj_list) {
-      idx   <- which(d_sub$subject == s)
-      shift <- matrix(runif(n_taxa, min = 0, max = 0.05),
-                      nrow = length(idx), ncol = n_taxa, byrow = TRUE)
-      bugs_spiked[idx, ] <- bugs_spiked[idx, ] + shift
-    }
-
-    # renormalize to compositional rows 
-    row_sums <- rowSums(bugs_spiked)
-    bugs_spiked <- sweep(bugs_spiked, 1, row_sums, FUN = "/")
-    bugs_spiked[is.na(bugs_spiked)] <- 0
-  }
-
-  # -----------------------------
-  # 4. Bray–Curtis distance
-  # -----------------------------
-  dist_spiked <- vegdist(bugs_spiked, method = "bray")
-
-  list(
-    metadata = d_sub,
-    bugs     = bugs_spiked,
-    dist     = dist_spiked
-  )
-}
-
-# Quick check: null data
-sim0 <- simulate_hmp_microbiome(effect_size = 0, seed = 1)
-str(sim0$metadata)
-dim(sim0$bugs)
+```{r}
+dim(bugs)
 ```
 
-# One-shot example: null scenario (no spiked effect)
+***
 
-We start with a **null** scenario, `effect_size = 0`, where the simulated
-exposure has *no* spiked microbiome effect (it still may correlate with the
-real underlying HMP data, but we do not add any artificial effect).
+## (c) Distance matrix
 
-```{r one-null, warning = FALSE}
-sim_null <- simulate_hmp_microbiome(
-  n_subj           = 30,
-  max_samples_subj = 10,
-  effect_size      = 0,
-  seed             = 123
-)
+Use vegdist to get a distance matrix with a chosen method:
 
-meta_null <- sim_null$metadata
-bugs_null <- sim_null$bugs
-dist_null <- sim_null$dist
+```{r}
+library(vegan)
+dist_bc <- vegdist(bugs, method = "bray")
+```
 
-# Naïve PERMANOVA (ignores subject)
-adonis_naive <- adonis2(dist_null ~ exposure, data = meta_null, permutations = 199)
+***
 
-# Repeated-measures PERMANOVA: permute within subjects
-perm_rm <- PERMANOVA_repeat_measures(
-  formula           = dist_null ~ exposure,
-  data              = meta_null,
+# 2. Repeated‑measures PERMANOVA
+
+## Why not `adonis2()`?
+
+Standard PERMANOVA assumes **independent samples**.
+In longitudinal or clustered studies, samples from the same subject
+may be strongly correlated.
+
+Naively permuting labels across samples can produce false positives (incorrectly low p-values).
+
+***
+
+## `PERMANOVA_repeat_measures()`
+
+This function performs PERMANOVA while:
+
+*   permuting **variant covariates within subjects**, and
+*   shuffling **invariant covariates across subjects**.
+
+### Minimal example
+
+```{r}
+library(permabrioche)
+
+res_perm <- PERMANOVA_repeat_measures(
+  formula           = dist_bc ~ exposure, # adonis2-style formula
+  data              = meta,
   sample_id         = "sample",
   blocking_variable = "subject",
-  permutations      = 199
+  permutations      = 999
 )
 
-# Hájek-style repeated-measures test
-hajek_rm <- hajek_repeat_measures(
-  formula           = dist_null ~ exposure,
-  data              = meta_null,
+res_perm
+```
+
+***
+
+## How to interpret the output
+
+The output mirrors `adonis2()`:
+
+*   `F` and `Pr(>F)` test whether the exposure is associated
+    with multivariate composition.
+*   The p‑value is valid **under repeated measures**.
+
+Use this function whenever a subject contributes multiple samples.
+
+***
+
+# 3. Null‑centered $$R^2$$
+
+## Why standard PERMANOVA $$R^2$$ is misleading
+
+As shown in the accompanying manuscript (Effect-Size Estimation and Confounding-Aware Permutations for PERMANOVA), PERMANOVA $$R^2$$ is
+**upwardly biased under the null**, especially in small or complex designs.
+
+A value greater than zero does *not* necessarily imply a real effect.
+
+***
+
+## Null‑centered adjustment
+
+`PERMANOVA_repeat_measures()` can subtract the **mean null $$R^2$$**
+estimated from permutations.
+
+This yields an effect size interpreted as:
+
+> variation explained **beyond chance under the study design**
+
+***
+
+## Use `center_R2 = TRUE` to compute null‑centered $$R^2$$
+
+```{r}
+res_perm_centered <- PERMANOVA_repeat_measures(
+  formula           = dist_bc ~ exposure,
+  data              = meta,
   sample_id         = "sample",
-  bugs              = bugs_null,
+  blocking_variable = "subject",
+  permutations      = 999,
+  center_R2         = TRUE
+)
+
+res_perm_centered
+```
+
+### What to report
+
+*   `R2_centered` – adjusted effect size
+*   `Pr(>F)` – same hypothesis test
+
+### Note on Euclidean case
+
+If the distance matrix is computed using Euclidean distance, the null-centering adjustment
+has an analytical form. Instead of using the estimation from the above function, it can be simply calculated as $$R^2_{centered} - R^2_{original} - \frac{g-1}{N-1}$$,
+where R2_original is the unadjusted estimate (obtained from running adonis2, for example), $$g$$ is the number of levels of the exposure variable (which is 2 for a binary exposure), and $$N$$ is the 
+total number of samples.
+
+***
+
+# 4. Hajek distance‑based effect size
+
+## What question does this answer?
+
+PERMANOVA provides a statistically-grounded **test**, but its effect size is somewhat abstract.
+
+The Hajek estimator answers:
+
+> *On average, how far does exposure move samples away from
+> a control centroid, in units of the chosen distance metric?*
+
+This new effect size is very cleanly interpretable.
+
+***
+
+## `hajek_repeat_measures()`
+
+The method:
+
+1.  splits subjects into training and test sets
+2.  estimates a control centroid using training data
+3.  computes distances for test samples
+4.  estimates a Hajek average treatment effect
+5.  uses subject‑aware permutations for inference
+
+***
+
+### Usage is similar to `PERMANOVA_repeat_measures` except it requires 
+specifying the feature matrix: `bugs`, the binary exposure name: `covariate_name`,
+and how distances should be computed when constructing the outcome: `method`.
+
+```{r}
+res_hajek <- hajek_repeat_measures(
+  formula           = dist_bc ~ exposure,
+  data              = meta,
+  bugs              = bugs,
+  sample_id         = "sample",
   blocking_variable = "subject",
   covariate_name    = "exposure",
-  permutations      = 199,
-  split_ratio       = 0.5,
-  numerical_metadata = NULL,
+  permutations      = 999,
   method            = "bray"
 )
 
-adonis_naive
-perm_rm
-hajek_rm[names(hajek_rm) != "null_dist"]
+res_hajek$pval
 ```
 
-Under the null, across repeated simulations:
+***
 
-- the vanilla PERMANOVA may show inflated type I error because it ignores
-  subject-level confounding,  
-- the repeated-measures and Hajek methods should have better-calibrated
-  p-values. 
-- this is only for one replicate though, so let us take a look at some Monte Carlo samples.
+## Interpreting the output
 
-# A small HMP-based simulation study
+*   `observed` – effect size on the distance scale
+*   `pval` – permutation p‑value
+*   positive value → exposure increases distance from control centroid
+*   negative value → exposure decreases distance from control centroid
 
-We now build a small Monte Carlo experiment where each replicate:
+This effect size has a direct geometric interpretation.
 
-1. Simulates an HMP-based dataset with repeated measures,  
-2. Fits:
-   - `Naive`: `adonis2(dist ~ exposure)`,
-   - `RM`: `PERMANOVA_repeat_measures()`,
-   - `Hajek`: `hajek_repeat_measures()`,  
-3. Stores the p-values for comparison.
+***
 
-We consider:
+# 5. Mean–dispersion decomposition
 
-- a **null** scenario (`effect_size = 0`),  
-- an **alternative** scenario (`effect_size > 0`, with multiplicative spikes).
+In the Euclidean case, the Hajek effect can be decomposed into:
 
-To keep the vignette fast, we use a modest `n_sim`; you can increase it if you would like.
+*   **location**: change in mean composition
+*   **dispersion**: change in variability
 
-```{r sim-fun, message=FALSE, warning=FALSE}
-run_small_sim_hmp <- function(
-  n_sim           = 30,
-  n_subj          = 30,
-  max_samples_subj = 10,
-  frac_spike_taxa = 0.1,
-  effect_size     = 0
-) {
-  out <- vector("list", n_sim)
+***
 
-  for (i in seq_len(n_sim)) {
+## Required inputs (important)
 
-    s <- simulate_hmp_microbiome(
-      n_subj           = n_subj,
-      max_samples_subj = max_samples_subj,
-      frac_spike_taxa  = frac_spike_taxa,
-      effect_size      = effect_size,
-      seed             = i
-    )
+The decomposition explicitly requires **correct data levels**:
 
-    meta <- s$metadata
-    bugs <- s$bugs
-    dist <- s$dist
+| Object           | Level            |
+| ---------------- | ---------------- |
+| `permute_within` | sample           |
+| `blocks`         | sample → subject |
+| `block_data`     | subject          |
+| `bugs`           | sample           |
 
-    # Naïve PERMANOVA
-    a_naive <- adonis2(dist ~ exposure, data = meta, permutations = 99)
+***
 
-    # Repeated-measures PERMANOVA
-    a_rm <- PERMANOVA_repeat_measures(
-      formula           = dist ~ exposure,
-      data              = meta,
-      sample_id         = "sample",
-      blocking_variable = "subject",
-      permutations      = 99
-    )
+## Example
 
-    # Hájek repeated-measures test
-    a_hajek <- hajek_repeat_measures(
-      formula           = dist ~ exposure,
-      data              = meta,
-      sample_id         = "sample",
-      bugs              = bugs,
-      blocking_variable = "subject",
-      covariate_name    = "exposure",
-      permutations      = 99,
-      split_ratio       = 0.5,
-      numerical_metadata = NULL,
-      method            = "bray"
-    )
+```{r}
+blocks <- meta$subject
+names(blocks) <- meta$sample
+blocks <- blocks[rownames(bugs)]
 
-    out[[i]] <- data.frame(
-      sim    = i,
-      method = c("Naive", "RM", "Hajek"),
-      pval   = c(
-        a_naive$`Pr(>F)`[1],
-        a_rm$`Pr(>F)`[1],
-        a_hajek$pval
-      ),
-      stringsAsFactors = FALSE
-    )
-  }
+permute_within <- data.frame(row.names = rownames(bugs))
 
-  do.call(rbind, out)
-}
-
-set.seed(123)
-
-# Null: no spiked effect from exposure
-res_null <- run_small_sim_hmp(
-  n_sim           = 3,
-  n_subj          = 30,
-  max_samples_subj = 10,
-  frac_spike_taxa = 0.1,
-  effect_size     = 0
-)
-
-# Alternative: clear spiked effect on a subset of taxa
-res_alt <- run_small_sim_hmp(
-  n_sim           = 3,
-  n_subj          = 30,
-  max_samples_subj = 10,
-  frac_spike_taxa = 0.1,
-  effect_size     = 15    # multiplicative spike
-)
-
-head(res_null)
-head(res_alt)
-```
-
-## Type I error under the null
-
-We first visualize p-values when there is **no spiked effect** (`effect_size = 0`).
-
-```{r null-plots, fig.height=4, fig.width=6}
-alpha <- 0.05
-
-n_per_method <- nrow(res_null) / length(unique(res_null$method))
-
-ggplot(res_null, aes(x = pval)) +
-  geom_histogram(
-    breaks = seq(0, 1, by = 0.05),
-    color  = "black",
-    fill   = "gray80",
-    closed = "left"
-  ) +
-  geom_hline(
-    yintercept = n_per_method * alpha,
-    colour     = "red",
-    linewidth  = 1
-  ) +
-  facet_wrap(~ method, nrow = 1) +
-  theme_bw() +
-  labs(
-    title = "Null simulations (HMP-based, effect_size = 0): p-value distributions",
-    x     = "P-value",
-    y     = "Count"
-  )
-
-# Empirical type I error at alpha = 0.05
-res_null %>%
-  group_by(method) %>%
-  summarise(
-    FPR_0.05 = mean(pval < alpha),
-    .groups  = "drop"
-  )
-```
-
-The red line shows the expected bin count under a perfect Uniform(0,1)
-distribution at significance level 0.05. A well-calibrated method will have
-`FPR_0.05` close to 0.05.
-
-## Power under the alternative
-
-We now look at the **alternative** scenario, where the exposure is artificially
-linked to a spike in microbiome composition.
-
-```{r alt-plots, fig.height=4, fig.width=6}
-alpha <- 0.05
-
-n_per_method_alt <- nrow(res_alt) / length(unique(res_alt$method))
-
-ggplot(res_alt, aes(x = pval)) +
-  geom_histogram(
-    breaks = seq(0, 1, by = 0.05),
-    color  = "black",
-    fill   = "gray80",
-    closed = "left"
-  ) +
-  geom_hline(
-    yintercept = n_per_method_alt * alpha,
-    colour     = "red",
-    linewidth  = 1
-  ) +
-  facet_wrap(~ method, nrow = 1) +
-  theme_bw() +
-  labs(
-    title    = "Alternative simulations (HMP-based, effect_size = 5): p-value distributions",
-    subtitle = "Red line is the null-reference count at alpha = 0.05",
-    x        = "P-value",
-    y        = "Count"
-  )
-
-# Empirical power at alpha = 0.05
-res_alt %>%
-  group_by(method) %>%
-  summarise(
-    Power_0.05 = mean(pval < alpha),
-    .groups    = "drop"
-  )
-```
-
-Under a strong enough spiked effect, well-powered methods will concentrate p-values
-near 0 and show larger `Power_0.05`.
-
-# Mean–variance decomposition (location vs dispersion)
-
-In addition to the overall Hajek effect, **permabrioche** can decompose
-the test‑set effect into:
-
-- a **location** component (difference in mean feature vectors relative
-  to the reference centroid), and
-- a **dispersion** component (difference in total variance / spread).
-
-This decomposition helps distinguish whether an exposure primarily shifts
-the *center* of the microbiome distribution or instead alters its *variability*.
-
-The decomposition uses the **same subject‑level train/test split** as the
-Hajek estimator, ensuring no information leakage.
-
-```{r hajek-loc-disp, message = FALSE, warning = FALSE}
-# --- Construct inputs at the CORRECT levels ---
-
-# Sample -> subject mapping
-blocks <- meta_null$subject
-names(blocks) <- meta_null$sample
-blocks <- blocks[rownames(bugs_null)]
-
-# permute_within: can be empty or dummy (no within-block varying covariates needed here)
-permute_within <- data.frame(
-  dummy = rep(0, nrow(bugs_null)),
-  row.names = rownames(bugs_null)
-)
-
-# block_data: SUBJECT-LEVEL covariate (this is the key!)
 block_data <- aggregate(
   exposure ~ subject,
-  data = meta_null,
+  data = meta,
   FUN = function(x) x[1]
 )
 row.names(block_data) <- block_data$subject
 block_data$subject <- NULL
 
-# Call decomposition
-loc_disp <- hajek_repeat_measures_loc_and_disp(
-  D              = dist_null,
+res_ld <- hajek_repeat_measures_loc_and_disp(
+  D              = dist_bc,
   permute_within = permute_within,
   blocks         = blocks,
   block_data     = block_data,
-  bugs           = bugs_null,
+  bugs           = bugs,
   covariate_name = "exposure",
   split_ratio    = 0.5,
   method         = "euclidean"
 )
 
-loc_disp
+res_ld
 ```
 
-**Interpretation**
+***
 
-- `observed_tau` is the same Hajek‐style total effect computed on the test set.
-- `observed_loc` reflects shifts in the average microbiome composition
-  (movement of group centroids).
-- `observed_disp` reflects changes in overall variability
-  (total feature‑space variance).
+## Interpretation
 
-A large location component with small dispersion suggests a *mean shift*,
-whereas a large dispersion component suggests increased heterogeneity
-without a strong centroid shift.
+*   `observed_tau` – total Hajek effect
+*   `observed_loc` – mean (centroid) shift
+*   `observed_disp` – change in variability
 
+Large location with small dispersion suggests a systematic shift,
+while large dispersion suggests increased heterogeneity.
+
+***
 
 # Summary
 
-In this vignette we:
+This vignette demonstrated how to analyze repeated‑measures
+microbiome data using **permaBrioche**.
 
-- started from real **HMP-based microbiome data** (`d`, `bugs`) with repeated measures,  
-- defined a simple HMP-based **simulator** that:
-  - selects a subset of subjects and samples,
-  - constructs a **within-subject binary exposure**,
-  - **spikes some taxa** to form an alternative hypothesis,  
-- applied:
-  - a naive PERMANOVA (`adonis2(dist ~ exposure)`),
-  - `PERMANOVA_repeat_measures()` (within-subject permutations),
-  - `hajek_repeat_measures()` (Hajek-style repeated-measures test),  
-- ran a **small Monte Carlo study** to inspect:
-  - type I error (null, `effect_size = 0`),
-  - power (alternative, `effect_size > 0`).
-- demonstrated the mean-variance decomposition of the Hajek estimator.
+***
