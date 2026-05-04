@@ -18,7 +18,7 @@ This vignette explains how to analyze **repeated‑measures microbiome data**
 using **permaBrioche**. Specifically, we show:
 
 1.  how to use `PERMANOVA_repeat_measures()`
-2.  how to obtain a **null‑centered $$R^2$$**
+2.  how to obtain a **null‑centered $R^2$**
 3.  how to use `hajek_repeat_measures()`
 4.  how to decompose the Hajek effect into **location** and **dispersion**
 
@@ -150,11 +150,11 @@ Use this function whenever a subject contributes multiple samples.
 
 ***
 
-# 3. Null‑centered $$R^2$$
+# 3. Null‑centered $R^2$
 
-## Why standard PERMANOVA $$R^2$$ is misleading
+## Why standard PERMANOVA $R^2$ is misleading
 
-As shown in the accompanying manuscript (Effect-Size Estimation and Confounding-Aware Permutations for PERMANOVA), PERMANOVA $$R^2$$ is
+As shown in the accompanying manuscript (Effect-Size Estimation and Confounding-Aware Permutations for PERMANOVA), PERMANOVA $R^2$ is
 **upwardly biased under the null**, especially in small or complex designs.
 
 A value greater than zero does *not* necessarily imply a real effect.
@@ -163,7 +163,7 @@ A value greater than zero does *not* necessarily imply a real effect.
 
 ## Null‑centered adjustment
 
-`PERMANOVA_repeat_measures()` can subtract the **mean null $$R^2$$**
+`PERMANOVA_repeat_measures()` can subtract the **mean null $R^2$**
 estimated from permutations.
 
 This yields an effect size interpreted as:
@@ -172,7 +172,7 @@ This yields an effect size interpreted as:
 
 ***
 
-## Use `center_R2 = TRUE` to compute null‑centered $$R^2$$
+## Use `center_R2 = TRUE` to compute null‑centered $R^2$
 
 ```{r}
 res_perm_centered <- PERMANOVA_repeat_measures(
@@ -195,8 +195,8 @@ res_perm_centered
 ### Note on Euclidean case
 
 If the distance matrix is computed using Euclidean distance, the null-centering adjustment
-has an analytical form. Instead of using the estimation from the above function, it can be simply calculated as $$R^2_{centered} - R^2_{original} - \frac{g-1}{N-1}$$,
-where R2_original is the unadjusted estimate (obtained from running adonis2, for example), $$g$$ is the number of levels of the exposure variable (which is 2 for a binary exposure), and $$N$$ is the 
+has an analytical form. Instead of using the estimation from the above function, it can be simply calculated as $R^2_{centered} - R^2_{original} - \frac{g-1}{N-1}$,
+where R2_original is the unadjusted estimate (obtained from running adonis2, for example), $g$ is the number of levels of the exposure variable (which is 2 for a binary exposure), and $N$ is the 
 total number of samples.
 
 ***
