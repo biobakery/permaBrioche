@@ -190,7 +190,7 @@ This decomposition distinguishes systematic shifts from increased heterogeneity.
 
 ***
 
-## When to use which method
+## When to use which method (permaBrioche function)
 
 | Goal                      | Recommended method                        |
 | ------------------------- | ----------------------------------------- |
@@ -198,25 +198,6 @@ This decomposition distinguishes systematic shifts from increased heterogeneity.
 | Variance summary          | PERMANOVA + null‑centered $R^2$           |
 | Interpretable effect size | `hajek_repeat_measures()`                 |
 | Mean vs variability       | Hájek + location–dispersion decomposition |
-
-***
-
-## Practical recommendations
-
-1.  **Do not interpret raw PERMANOVA $R^2$ as an effect size**  
-    It is biased under the null and design‑dependent.
-
-2.  **Always specify permutations explicitly in repeated‑measures designs**  
-    Naive permutations can yield severe false positives.
-
-3.  **Use distance‑scale effect sizes when interpretation matters**  
-    Hájek effects are comparable across distances and studies.
-
-4.  **Report full implementation details**, including:
-    *   distance metric
-    *   permutation scheme
-    *   whether $R^2$ is null‑centered
-    *   whether covariates are invariant or variant
 
 ***
 
