@@ -1,10 +1,5 @@
-<h1>
-  <span style="color:purple;">permaBrioche</span>:
-  A Beginner’s Guide to Repeated‑Measures PERMANOVA
-</h1>
-
 ---
-title: ""
+title: "permaBrioche: A Beginner’s Guide to Repeated‑Measures PERMANOVA"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{permabrioche: beginner repeated-measures workflow}
