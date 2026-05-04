@@ -1,4 +1,7 @@
-# <span style="color:red;">permaBrioche</span>: A Beginner’s Guide to Repeated-Measures PERMANOVA
+<h1>
+  <span style="color:red;">permaBrioche</span>:
+  A Beginner’s Guide to Repeated‑Measures PERMANOVA
+</h1>
 
 ---
 title: ""
