@@ -1,5 +1,7 @@
-
-# permaBrioche man/figures/logo.png
+# permaBrioche
+<table>
+  <tr>
+    <td style="vertical-align: top; padding-right: 20px;">
 
 <!-- badges: start -->
 <!-- badges: end -->
@@ -12,7 +14,7 @@ longitudinal sampling are common.
 
 permaBrioche addresses two well‑known limitations of standard PERMANOVA:
 
-1. **Invalid permutation schemes** under subject‑level confounding
+1. **Invalid permutation schemes** under subject‑level confounding  
    (e.g., longitudinal designs)
 2. **Upward bias and poor interpretability of the PERMANOVA $R^2$ effect size**
 
@@ -22,6 +24,13 @@ The package implements:
 - A **null‑centered $R^2$** for bias‑corrected variance explanation
 - A **Hájek‑based distance effect size** with direct geometric interpretation
 - Optional **location–dispersion decomposition** in the Euclidean case
+
+    </td>
+    <td style="vertical-align: top;">
+      <img src="man/permaBriocheLogo.png" alt="permaBrioche logo" width="700">
+    </td>
+  </tr>
+</table>
 
 ---
 
