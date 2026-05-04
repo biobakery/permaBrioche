@@ -1,79 +1,231 @@
-# Vignette
 
-You are currently reading the GitHub README, not the vignette :)
+# permaBrioche man/figures/logo.png
 
-To read the full vignette after installation (recommended), run the following **in R**:
+<!-- badges: start -->
+<!-- badges: end -->
 
-```r
-browseVignettes("permabrioche")
-```
-## permaBrioche
+**permaBrioche** is a statistical framework for **confounding‑aware PERMANOVA**
+and **interpretable distance‑based effect‑size estimation** in repeated‑measures
+and other blocked study designs. It is particularly motivated by microbiome and
+other high‑dimensional biological data, where subject‑level clustering and
+longitudinal sampling are common.
 
-The goal of permaBrioche is to support distance‑based hypothesis testing and effect‑size estimation for microbiome community data. It addresses known limitations of standard PERMANOVA by providing confounding‑aware permutation schemes for repeated‑measures designs and also a Hájek‑style estimator with interpretable effect sizes, enabling well‑calibrated inference.
+permaBrioche addresses two well‑known limitations of standard PERMANOVA:
+
+1. **Invalid permutation schemes** under subject‑level confounding
+   (e.g., longitudinal designs)
+2. **Upward bias and poor interpretability of the PERMANOVA $R^2$ effect size**
+
+The package implements:
+
+- **Design‑aware permutation schemes** for invariant and variant covariates
+- A **null‑centered $R^2$** for bias‑corrected variance explanation
+- A **Hájek‑based distance effect size** with direct geometric interpretation
+- Optional **location–dispersion decomposition** in the Euclidean case
+
+---
+
+## Citation
+
+This manuscript is currently under review.  
+Software is available via the BioBakery ecosystem as **permaBrioche**.
+
+---
+
+## Inputs
+
+permaBrioche operates on three aligned objects:
+
+1. **Sample‑level metadata (`meta`)**
+   - one row per sample
+   - includes:
+     - `sample`: unique sample ID
+     - `subject`: repeated‑measures or blocking ID
+     - covariates of interest (e.g., `exposure`)
+
+2. **Feature matrix (`bugs`)**
+   - rows = samples
+   - columns = features (e.g., taxa, genes)
+   - rownames must match `meta$sample`
+
+3. **Distance matrix (`dist`)**
+   - computed from `bugs`
+   - e.g., Bray–Curtis or Euclidean
+
+These objects together define the study design, outcome space, and permutation
+constraints.
+
+---
+
+## Outputs
+
+Depending on the method used, permaBrioche reports:
+
+- **PERMANOVA results**
+  - pseudo‑ $F$ statistic
+  - empirical permutation *p*‑value
+  - optional null‑centered $R^2$
+
+- **Hájek distance‑based effect size**
+  - effect on the distance scale
+  - permutation‑based uncertainty
+  - optional decomposition into:
+    - **location** (mean / centroid shift)
+    - **dispersion** (change in variability)
+
+All outputs are **valid under repeated measures** and designed to be
+**interpretable across studies**.
+
+---
 
 ## Installation
 
-You can install permabrioche from GitHub with:
+permaBrioche is currently distributed via GitHub as part of the BioBakery
+ecosystem. To install the package (including vignettes):
 
-``` r
-remotes::install_github("biobakery/permabrioche", build_vignettes = TRUE)
+```r
+library(devtools)
+
+devtools::install_github(
+  "biobakery/permabrioche",
+  build_vignettes = TRUE
+)
+````
+
+***
+
+## Tutorial
+
+**Read the vignette:**  
+`vignette("permabrioche", package = "permabrioche")`
+
+You are reading the GitHub README, **not the vignette**.
+
+The vignette contains:
+
+*   fully runnable examples
+*   detailed explanations of permutation schemes
+*   interpretation guidance for all effect sizes
+
+The examples below are illustrative only.
+
+***
+
+## Example: Repeated‑measures PERMANOVA
+
+```r
+res_perm <- PERMANOVA_repeat_measures(
+  formula           = dist_bc ~ exposure,
+  data              = meta,
+  sample_id         = "sample",
+  blocking_variable = "subject",
+  permutations      = 999
+)
 ```
 
+This function:
 
-> Getting started with the Bioconductor Template: 
-- Click on "**Use this Template**" button and fill out the new repository informations (name/description/access). 
-- Finally click on "**Create repository from template**" and you now have a new repository based on the Bioconductor Template following the standard layouts. 
+*   permutes **variant covariates within subjects**
+*   permutes **invariant covariates across subjects**
+*   returns valid inference under repeated measures
 
-Alternatively, 
-- Direct to [Github Create New Repository](https://github.com/organizations/biobakery/repositories/new) and select the "**biobakery/Biocondutor-package-template**". Fill out other information (Repository name/description/access)
-- Finally click on "**Create repository**" and you now have a new repository based on the Bioconductor Template. 
+***
 
-**NOTE**: Make your repository "**Private**" unless it is ready to be released.
+## Example: Null‑centered $R^2$
 
-## Developing New Bioconductor Packages 
-### Setting up local development environment
-- Clone your recently created repository in your local development environment either using:
-    ``` 
-        git clone https://github.com/biobakery/<Name of your repository>
-    ```
-    or using the "**Clone or Download**" button. 
+```r
+res_perm_centered <- PERMANOVA_repeat_measures(
+  formula           = dist_bc ~ exposure,
+  data              = meta,
+  sample_id         = "sample",
+  blocking_variable = "subject",
+  permutations      = 999,
+  center_R2         = TRUE
+)
+```
 
-### Installing the dependencies
-- Get the latest or compatible version of the "**BiocManager**" and "**devtools**". Run the following installation code in the R console using R studio.  
-  Current Development Version of Bioconductor: 3.11
-    ```
-        if (!requireNamespace("BiocManager", quietly = TRUE))
-          install.packages("BiocManager")
-          install.packages("devtools"); library("devtools");
-        BiocManager::install(version = "3.10")
-        BiocManager::valid()              # checks for out of date packages
-    ```
-    Alternatively, 
-    Run the **/R/template.R** file which will install the latest version of "**BiocManager**" and "**devtools**" for you.
-- If the project has additional dependencies needed for the development, it is reccommended to be add them to "**Imports**" of the **DESCRIPTION** file. 
+**Interpretation**
 
-## Working with existing packages 
-- Detailed instruction to use/clone the Hutlab's bioconductor packages are provided in landing page:
-    https://huttenhower.sph.harvard.edu/[toolName]
-- Example: 
-    ```
-    Getting up and running with MaAsLin2 using the bioconductor Template:
-    - RUN the template.R file which will install BiocManager and devtools for you. 
-    - RUN BiocManager::install("Maaslin2")
-    - RUN browseVignettes("Maaslin2") - to view the manual. 
-    This will give you the released version of Maaslin2 and you will now be able to run Maaslin2. 
-Additional details on the folder stucture and details available [HERE](http://bioconductor.org/developers/how-to/buildingPackagesForBioc/#basic-package-anatomy). 
+> **Null‑centered $R^2$** = variation explained *beyond chance under the study
+> design*
 
-## Test workflow 
- Two of the main frameworks for testing are [RUnit](http://smarden.org/runit/) and [testthat](https://testthat.r-lib.org/). Additional examples and explanations are provided [here](http://bioconductor.org/developers/how-to/unitTesting-guidelines/). 
- 
- For this template, we are using testthat: 
+A value near zero indicates no meaningful effect.
 
-- Once you’re set up the workflow is simple. Modify your code or tests.
-- Test your package with ```devtools::test()```
-- (Optionally) Test you package using  **Ctrl/Cmd + Shift + T**.  
+***
 
-Repeat until all tests pass.
- - Click "Run Tests" to see a sample demo. 
-For more information on testing, see [Offcial R testthat documentation](https://cran.r-project.org/web/packages/testthat/testthat.pdf) or [bioconductor guidelines for Unit test](https://bioconductor.org/developers/package-guidelines/#unittest). 
+## Example: Hájek distance‑based effect size
 
+```r
+res_hajek <- hajek_repeat_measures(
+  formula           = dist_bc ~ exposure,
+  data              = meta,
+  bugs              = bugs,
+  sample_id         = "sample",
+  blocking_variable = "subject",
+  covariate_name    = "exposure",
+  permutations      = 999,
+  method            = "bray"
+)
+```
+
+Output:
+
+*   `observed`: distance‑scale effect size
+*   `pval`: permutation *p*‑value
+
+This effect size is **directly interpretable**, unlike variance‑based summaries.
+
+***
+
+## Location–dispersion decomposition
+
+In the **Euclidean case**, the Hájek effect decomposes as:
+
+$$
+\tau = \tau_{\text{location}} + \tau_{\text{dispersion}}
+$$
+
+*   **location**: mean (centroid) shift
+*   **dispersion**: change in within‑group variability
+
+This decomposition distinguishes systematic shifts from increased heterogeneity.
+
+***
+
+## When to use which method
+
+| Goal                      | Recommended method                        |
+| ------------------------- | ----------------------------------------- |
+| Hypothesis testing        | `PERMANOVA_repeat_measures()`             |
+| Variance summary          | PERMANOVA + null‑centered $R^2$           |
+| Interpretable effect size | `hajek_repeat_measures()`                 |
+| Mean vs variability       | Hájek + location–dispersion decomposition |
+
+***
+
+## Practical recommendations
+
+1.  **Do not interpret raw PERMANOVA $R^2$ as an effect size**  
+    It is biased under the null and design‑dependent.
+
+2.  **Always specify permutations explicitly in repeated‑measures designs**  
+    Naive permutations can yield severe false positives.
+
+3.  **Use distance‑scale effect sizes when interpretation matters**  
+    Hájek effects are comparable across distances and studies.
+
+4.  **Report full implementation details**, including:
+    *   distance metric
+    *   permutation scheme
+    *   whether $R^2$ is null‑centered
+    *   whether covariates are invariant or variant
+
+***
+
+## Support
+
+*   GitHub issues: <https://github.com/biobakery/permabrioche>
+*   BioBakery tools: <https://github.com/biobakery>
+
+***
+```
