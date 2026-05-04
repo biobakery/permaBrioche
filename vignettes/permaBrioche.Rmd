@@ -207,7 +207,7 @@ total number of samples.
 
 ## What question does this answer?
 
-PERMANOVA provides a statistically-grounded **test**, but its effect size is somewhat abstract.
+PERMANOVA provides a statistically-grounded test, but its effect size is somewhat abstract.
 
 The Hajek estimator answers:
 
