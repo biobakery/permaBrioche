@@ -36,11 +36,17 @@ bugs_name <- load(system.file("extdata", "bugs_hmp.Rda", package = "permabrioche
 meta <- get(d_name)
 bugs <- get(bugs_name)
 
+meta$exposure <- as.integer(meta$subject %in% sample(unique(meta$subject), length(unique(meta$subject))/2))
+
 # (Good practice: Ensure alignment between metadata and feature matrix)
 rownames(meta) <- meta$sample
 stopifnot(identical(rownames(meta), rownames(bugs)))
 
 ```
+
+In this example, the exposure variable is constant within subject and randomly assigned at the subject level.
+Therefore, there is **no true association** between exposure and the microbiome, and the true effect size is zero.
+
 ***
 
 # 1. The basic data structure
