@@ -30,11 +30,11 @@ using **permaBrioche**. Specifically, we show:
 library(permabrioche)
 library(vegan)
 
-load(system.file("extdata", "d_hmp.Rda", package = "permabrioche"))    # loads d
-load(system.file("extdata", "bugs_hmp.Rda", package = "permabrioche")) # loads bugs
+d_name <- load(system.file("extdata", "d_hmp.Rda", package = "permabrioche"))
+bugs_name <- load(system.file("extdata", "bugs_hmp.Rda", package = "permabrioche"))
 
-meta <- d              # rename metadata for clarity
-bugs <- bugs[, -1]     # drop redundant 'sample' column
+meta <- get(d_name)
+bugs <- get(bugs_name)
 
 # (Good practice: Ensure alignment between metadata and feature matrix)
 rownames(meta) <- meta$sample
