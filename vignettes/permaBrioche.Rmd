@@ -85,7 +85,7 @@ A matrix of features (e.g., taxa abundances):
 *   **rownames must match `meta$sample`**
 
 ```{r}
-colnames(bugs)[-1] <- paste0("bug", seq_len(ncol(bugs) - 1)) # for display in vignette
+colnames(bugs) <- paste0("bug", seq_len(ncol(bugs))) # for display in vignette
 head(bugs[, 1:5])
 dim(bugs)
 ```
