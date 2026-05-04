@@ -42,6 +42,13 @@ meta$exposure <- as.integer(meta$subject %in% sample(unique(meta$subject), lengt
 rownames(meta) <- meta$sample
 stopifnot(identical(rownames(meta), rownames(bugs)))
 
+# Downsample the data to make the computation manageable for the vignette
+keep_subjects <- sample(unique(meta$subject), 15)
+
+meta <- meta[meta$subject %in% keep_subjects, ]
+bugs <- bugs[rownames(meta_sub), ]
+
+
 ```
 
 In this example, the exposure variable is constant within subject and randomly assigned at the subject level.
