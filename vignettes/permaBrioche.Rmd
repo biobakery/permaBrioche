@@ -24,7 +24,8 @@ using **permaBrioche**. Specifically, we show:
 
 ***
 
-# 0. Loading the HMP-based data for this vignette
+# Data
+## Loading the HMP-based data for this vignette
 
 ```{r}
 library(permabrioche)
@@ -56,11 +57,11 @@ Therefore, there is **no true association** between exposure and the microbiome,
 
 ***
 
-# 1. The basic data structure
+## The basic data structure
 
 All functions in **permaBrioche** require three aligned objects:
 
-## (a) Sample‑level metadata
+### (a) Sample‑level metadata
 
 A `data.frame` with **one row per sample**, containing at least:
 
@@ -76,7 +77,7 @@ Each subject may appear in multiple rows.
 
 ***
 
-## (b) Feature matrix (`bugs`)
+### (b) Feature matrix (`bugs`)
 
 A matrix of features (e.g., taxa abundances):
 
@@ -92,7 +93,7 @@ dim(bugs)
 
 ***
 
-## (c) Distance matrix
+### (c) Distance matrix
 
 Use vegdist to get a distance matrix with a chosen method:
 
@@ -103,7 +104,7 @@ dist_bc <- vegdist(bugs, method = "bray")
 
 ***
 
-# 2. Repeated‑measures PERMANOVA
+# 1. Repeated‑measures PERMANOVA
 
 ## Why not `adonis2()`?
 
@@ -152,7 +153,7 @@ Use this function whenever a subject contributes multiple samples.
 
 ***
 
-# 3. Null‑centered $R^2$
+# 2. Null‑centered $R^2$
 
 ## Why standard PERMANOVA $R^2$ is misleading
 
@@ -203,7 +204,7 @@ total number of samples.
 
 ***
 
-# 4. Hajek distance‑based effect size
+# 3. Hajek distance‑based effect size
 
 ## What question does this answer?
 
@@ -263,7 +264,7 @@ This effect size has a direct geometric interpretation.
 
 ***
 
-# 5. Mean–dispersion decomposition
+# 4. Mean–dispersion decomposition
 
 In the Euclidean case, the Hajek effect can be decomposed into:
 
