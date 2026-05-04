@@ -43,7 +43,7 @@ rownames(meta) <- meta$sample
 stopifnot(identical(rownames(meta), rownames(bugs)))
 
 # Downsample the data to make the computation manageable for the vignette
-keep_subjects <- sample(unique(meta$subject), 10)
+keep_subjects <- sample(unique(meta$subject), 15)
 
 meta <- meta[meta$subject %in% keep_subjects, ]
 bugs <- bugs[rownames(meta), ]
