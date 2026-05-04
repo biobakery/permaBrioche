@@ -97,7 +97,7 @@ devtools::install_github(
 ## Tutorial
 
 **Read the vignette:**  
-`vignette("permabrioche", package = "permabrioche")`
+`browseVignettes("permabrioche")`
 
 You are reading the GitHub README, **not the vignette**.
 
