@@ -1,5 +1,5 @@
 <h1>
-  <span style="color:red;">permaBrioche</span>:
+  <span style="color:purple;">permaBrioche</span>:
   A Beginner’s Guide to Repeated‑Measures PERMANOVA
 </h1>
 
