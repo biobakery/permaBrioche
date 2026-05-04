@@ -197,7 +197,7 @@ res_perm_centered
 ### Note on Euclidean case
 
 If the distance matrix is computed using Euclidean distance, the null-centering adjustment
-has an analytical form. Instead of using the estimation from the above function, it can be simply calculated as $R^2_{centered} - R^2_{original} - \frac{g-1}{N-1}$,
+has an analytical form. Instead of using the estimation from the above function, it can be simply calculated as $R^2_{centered} = R^2_{original} - \frac{g-1}{N-1}$,
 where R2_original is the unadjusted estimate (obtained from running adonis2, for example), $g$ is the number of levels of the exposure variable (which is 2 for a binary exposure), and $N$ is the 
 total number of samples.
 
