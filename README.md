@@ -99,8 +99,6 @@ devtools::install_github(
 **Read the vignette:**  
 `browseVignettes("permabrioche")`
 
-You are reading the GitHub README, **not the vignette**.
-
 The vignette contains:
 
 *   fully runnable examples
