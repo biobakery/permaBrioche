@@ -85,7 +85,8 @@ A matrix of features (e.g., taxa abundances):
 *   **rownames must match `meta$sample`**
 
 ```{r}
-print(head(bugs[, 1:5]), col.names = FALSE)
+colnames(bugs) <- NULL # for display in vignette
+head(bugs[, 1:5])
 dim(bugs)
 ```
 
