@@ -249,7 +249,7 @@ res_hajek <- hajek_repeat_measures(
   blocking_variable = "subject",
   covariate_name    = "exposure",
   permutations      = 999,
-  method            = "bray"
+  method            = "bray" # or "euclidean"
 )
 
 res_hajek$observed
