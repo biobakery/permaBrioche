@@ -59,15 +59,17 @@ Therefore, there is **no true association** between exposure and the microbiome,
 
 ## The basic data structure
 
-All functions in **permaBrioche** require three aligned objects:
+**permaBrioche** requires two aligned objects:
 
 ### (a) Sample‑level metadata
 
 A `data.frame` with **one row per sample**, containing at least:
 
-*   `sample` – unique sample ID
 *   `subject` – repeated‑measures (blocking) ID
-*   `exposure` – a binary covariate of interest
+*   `exposure` – the covariate of interest (e.g. binary treatment status or multi-level categorical factor)
+*   **Sample Identifiers** provided in one of two ways:
+    *   row names that uniquely identify samples and are used when constructing the feature matrix, or
+    *   a column containing unique sample IDs (specified via the `sample_id` argument, e.g. `sample_id = "sample"`)
 
 ```{r}
 head(meta)
@@ -82,8 +84,9 @@ Each subject may appear in multiple rows.
 A matrix of features (e.g., taxa abundances):
 
 *   rows = samples
+    *   (row names must use the same sample identifiers as the metadata)
 *   columns = features
-*   **rownames must match `meta$sample`**
+
 
 ```{r}
 colnames(bugs) <- paste0("bug", seq_len(ncol(bugs))) # for display in vignette
@@ -93,9 +96,11 @@ dim(bugs)
 
 ***
 
+With these two objects, we can create the distance matrix for **permaBrioche**:
+
 ### (c) Distance matrix
 
-Use vegdist to get a distance matrix with a chosen method:
+Use vegdist to get a distance matrix with a chosen dissimilarity method:
 
 ```{r}
 library(vegan)
@@ -106,7 +111,7 @@ dist_bc <- vegdist(bugs, method = "bray")
 
 # 1. Repeated‑measures PERMANOVA
 
-## Why not `adonis2()`?
+## Why not vanilla `adonis2()`?
 
 Standard PERMANOVA assumes **independent samples**.
 In longitudinal or clustered studies, samples from the same subject
