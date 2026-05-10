@@ -160,7 +160,7 @@ Use this function whenever a subject contributes multiple samples.
 
 # 2. Null‑centered $R^2$
 
-## Why standard PERMANOVA $R^2$ is misleading
+## Why standard PERMANOVA $R^2$ can be misleading
 
 As shown in the accompanying manuscript (Effect-Size Estimation and Confounding-Aware Permutations for PERMANOVA), PERMANOVA $R^2$ is
 **upwardly biased under the null**, especially in small or complex designs.
