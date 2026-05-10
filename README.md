@@ -43,27 +43,40 @@ Software is available via the BioBakery ecosystem as **permaBrioche**.
 
 ## Inputs
 
-permaBrioche operates on three aligned objects:
+**permaBrioche** requires two aligned objects:
 
-1. **Sample‑level metadata (`meta`)**
-   - one row per sample
-   - includes:
-     - `sample`: unique sample ID
-     - `subject`: repeated‑measures or blocking ID
-     - covariates of interest (e.g., `exposure`)
+### (a) Sample‑level metadata
 
-2. **Feature matrix (`bugs`)**
-   - rows = samples
-   - columns = features (e.g., taxa, genes)
-   - rownames must match `meta$sample`
+A `data.frame` with **one row per sample**, containing at least:
 
-3. **Distance matrix (`dist`)**
-   - computed from `bugs`
-   - e.g., Bray–Curtis or Euclidean
+*   `subject` – repeated‑measures (blocking) ID
+*   `exposure` – the covariate of interest (e.g. binary treatment status or multi-level categorical factor)
+*   **Sample Identifiers** provided in one of two ways:
+    *   row names that uniquely identify samples and are used when constructing the feature matrix, or
+    *   a column containing unique sample IDs (specified via the `sample_id` argument, e.g. `sample_id = "sample"`)
 
-These objects together define the study design, outcome space, and permutation
-constraints.
+Each subject may appear in multiple rows.
 
+### (b) Feature matrix (`bugs`)
+
+A matrix of features (e.g., taxa abundances):
+
+*   rows = samples
+    *   (row names must use the same sample identifiers as the metadata)
+*   columns = features
+
+***
+
+With these two objects, we can create the distance matrix for **permaBrioche**:
+
+### (c) Distance matrix
+
+Use vegdist to get a distance matrix with a chosen dissimilarity method:
+
+```{r}
+library(vegan)
+dist_bc <- vegdist(bugs, method = "bray")
+```
 ---
 
 ## Outputs
