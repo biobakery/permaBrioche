@@ -20,11 +20,28 @@
 #' @param center_R2 Logical; if \code{TRUE}, subtracts the mean of the
 #'   permutation null R\eqn{^2} distribution from the observed R\eqn{^2}
 #'   for each term, returning a \code{R2_centered} column.
+#' @param by \code{NULL} (default), \code{"terms"}, or \code{"margin"}; passed
+#'   to \code{vegan::adonis2}'s \code{by} argument.
+#'   \describe{
+#'     \item{\code{NULL}}{Omnibus test: all RHS terms tested jointly as a
+#'       single combined row. Historical default behavior of this function.}
+#'     \item{\code{"terms"}}{Sequential (Type I) per-term table. Terms are
+#'       tested in the order given by \code{metadata_order} -- which groups
+#'       all within-block-varying terms before all block-level (static)
+#'       terms, \strong{not} the order they appear in \code{formula}. Each
+#'       term is adjusted only for terms before it in that order.}
+#'     \item{\code{"margin"}}{Marginal per-term table. Each term is tested
+#'       adjusted for all other terms regardless of order, avoiding the
+#'       reordering caveat above.}
+#'   }
 #'
 #' @return A \code{vegan::adonis} table (from \code{adonis2}) with an added
 #'   \code{Pr(>F)} column computed from the custom null and an optional
 #'   \code{na.removed} attribute if \code{na.rm=TRUE}. A descriptive \code{"heading"}
-#'   attribute is also added.
+#'   attribute is also added. The number of term rows depends on \code{by}:
+#'   one combined row when \code{by = NULL}, or one row per RHS term when
+#'   \code{by = "terms"} or \code{by = "margin"} -- in all cases followed by
+#'   \code{Residual} and \code{Total} rows.
 #'   If \code{center_R2 = TRUE}, an additional \code{R2_centered} column is
 #'   included, and the mean null R\eqn{^2} values are stored in the
 #'   \code{"null_means_R2"} attribute.
@@ -37,6 +54,11 @@
 #' block-level variables are shuffled across block identities and then reassigned
 #' to samples by their block membership. This yields a reduced-model style
 #' permutation respecting repeated measures.
+#'
+#' When \code{by = "terms"}, the sequential order tested is determined by
+#' within- vs. across-block variation, not by the order terms appear in
+#' \code{formula}. If adjustment order matters for interpretation, prefer
+#' \code{by = "margin"}, which is order-independent.
 #'
 #' @examples
 #' ## ---- minimal runnable example ----
@@ -62,11 +84,30 @@
 #'
 #' D <- vegan::vegdist(mat, method = "bray")
 #'
+#' ## omnibus test (default)
 #' PERMANOVA_repeat_measures(
 #'   D ~ X + Z,
 #'   data = meta,
 #'   blocking_variable = "subject",
 #'   permutations = 49
+#' )
+#'
+#' ## sequential per-term table
+#' PERMANOVA_repeat_measures(
+#'   D ~ X + Z,
+#'   data = meta,
+#'   blocking_variable = "subject",
+#'   permutations = 49,
+#'   by = "terms"
+#' )
+#'
+#' ## marginal per-term table (order-independent)
+#' PERMANOVA_repeat_measures(
+#'   D ~ X + Z,
+#'   data = meta,
+#'   blocking_variable = "subject",
+#'   permutations = 49,
+#'   by = "margin"
 #' )
 #'
 #' \donttest{
@@ -93,7 +134,11 @@ PERMANOVA_repeat_measures <- function(formula,
                                       blocking_variable = "subject",
                                       permutations = 999,
                                       na.rm = FALSE,
-                                      center_R2 = FALSE) {
+                                      center_R2 = FALSE,
+                                      by = NULL) {
+  
+  if (!is.null(by) && !by %in% c("terms", "margin"))
+    stop('`by` must be NULL, "terms", or "margin"')
   
   data <- as.data.frame(data)
   
@@ -188,16 +233,24 @@ PERMANOVA_repeat_measures <- function(formula,
     permutations   = permutations,
     metadata_order = metadata_order,
     na.rm          = na.rm,
-    center_R2      = center_R2
+    center_R2      = center_R2,
+    by             = by
+  )
+  
+  by_label <- switch(
+    if (is.null(by)) "NULL" else by,
+    "NULL" = "Overall (omnibus) test of all terms jointly"
+    "terms"  = "Terms added sequentially (first to last)",
+    "margin" = "Marginal effects of terms (each adjusted for all others)"
   )
 
   heading <- sprintf(paste(
     "Permutation test for adonis under reduced model",
-    "Terms added sequentially (first to last)",
+    "%s",
     "Permutation: blocked by %s",
     "Number of permutations: %d",
     sep = "\n"),
-    blocking_variable, permutations
+    by_label, blocking_variable, permutations
   )
   attr(res, "heading") <- paste0(heading, "\n", paste0(deparse(sys.call()), collapse = "\n"))
 
@@ -213,7 +266,11 @@ PERMANOVA_repeat_measures_core <- function(
     permutations = 999,
     metadata_order = c(names(permute_within), names(block_data)),
     na.rm = FALSE,
-    center_R2 = FALSE) {
+    center_R2 = FALSE,
+    by = NULL) {
+
+  if (!is.null(by) && !by %in% c("terms", "margin"))
+    stop('`by` must be NULL, "terms", or "margin"')
 
   if (!inherits(D, "dist")) stop("D must be a dist object")
 
@@ -291,7 +348,7 @@ PERMANOVA_repeat_measures_core <- function(
   }
 
   mtdat <- cbind(permute_within, block_data[blocks,,drop=FALSE])
-  ad    <- vegan::adonis2(D ~ ., permutations = 0, data = mtdat[, metadata_order, drop=FALSE])
+  ad    <- vegan::adonis2(D ~ ., permutations = 0, by = by, data = mtdat[, metadata_order, drop=FALSE])
   R2    <- ad$R2; names(R2) <- rownames(ad)
 
   nullsamples <- matrix(NA_real_, nrow = length(R2), ncol = permutations)
@@ -303,7 +360,7 @@ PERMANOVA_repeat_measures_core <- function(
       permute_within[within.i,,drop=FALSE],
       block_data[block.i,,drop=FALSE][blocks,,drop=FALSE]
     )
-    perm.ad <- vegan::adonis2(D ~ ., permutations = 0, data = mtdat.i[, metadata_order, drop=FALSE])
+    perm.ad <- vegan::adonis2(D ~ ., permutations = 0, by = by, data = mtdat.i[, metadata_order, drop=FALSE])
     nullsamples[,i] <- perm.ad$R2
   }
 
