@@ -353,7 +353,7 @@ PERMANOVA_repeat_measures_core <- function(
   perm_for_fit <- if (identical(by, "margin")) 1L else 0L
 
   mtdat <- cbind(permute_within, block_data[blocks,,drop=FALSE])
-  ad    <- vegan::adonis2(D ~ ., permutations = 0, by = by, data = mtdat[, metadata_order, drop=FALSE])
+  ad    <- vegan::adonis2(D ~ ., permutations = perm_for_fit, by = by, data = mtdat[, metadata_order, drop=FALSE])
   R2    <- ad$R2; names(R2) <- rownames(ad)
 
   nullsamples <- matrix(NA_real_, nrow = length(R2), ncol = permutations)
