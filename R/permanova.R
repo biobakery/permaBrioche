@@ -136,6 +136,7 @@ PERMANOVA_repeat_measures <- function(formula,
                                       na.rm = FALSE,
                                       center_R2 = FALSE,
                                       by = NULL) {
+  cat("patch1\n")
   
   if (!is.null(by) && !by %in% c("terms", "margin"))
     stop('`by` must be NULL, "terms", or "margin"')
