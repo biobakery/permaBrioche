@@ -239,7 +239,7 @@ PERMANOVA_repeat_measures <- function(formula,
   
   by_label <- switch(
     if (is.null(by)) "NULL" else by,
-    "NULL" = "Overall (omnibus) test of all terms jointly"
+    "NULL" = "Overall (omnibus) test of all terms jointly",
     "terms"  = "Terms added sequentially (first to last)",
     "margin" = "Marginal effects of terms (each adjusted for all others)"
   )
