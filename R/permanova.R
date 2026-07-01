@@ -310,16 +310,14 @@ PERMANOVA_repeat_measures_core <- function(
   n <- length(R2)
   R2[n-1]           <- 1 - R2[n-1]
   nullsamples[n-1,] <- 1 - nullsamples[n-1,]
-
   null_means <- rowMeans(nullsamples, na.rm = TRUE)
   if (center_R2) {
     ad$R2_centered <- R2 - null_means
   }
   attr(ad, "null_means_R2") <- null_means
-
   exceedances <- rowSums(nullsamples > R2)
   P <- (exceedances + 1) / (permutations + 1)
-  P[n] <- NA_real_
+  P[c(n - 1, n)] <- NA_real_
   ad$`Pr(>F)` <- P
   if (na.rm) ad$na.removed <- na.removed
   ad
