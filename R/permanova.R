@@ -374,7 +374,9 @@ PERMANOVA_repeat_measures_core <- function(
   nullsamples[n-1,] <- 1 - nullsamples[n-1,]
   null_means <- rowMeans(nullsamples, na.rm = TRUE)
   if (center_R2) {
-    ad$R2_centered <- R2 - null_means
+    R2_centered <- R2 - null_means
+    R2_centered[c(n - 1, n)] <- NA_real_
+    ad$R2_centered <- R2_centered
   }
   attr(ad, "null_means_R2") <- null_means
   exceedances <- rowSums(nullsamples > R2)
