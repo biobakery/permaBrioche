@@ -118,7 +118,7 @@ devtools::install_github(
 
 ## Tutorial
 
-🍞<a href="man/permaBrioche_workshop_demo.html"> **Read the permaBrioche Biobakery Demo**</a>
+🍞<a href="https://htmlpreview.github.io/?https://github.com/biobakery/permabrioche/blob/master/man/permaBrioche_workshop_demo.html" target="_blank"> **Read the permaBrioche Biobakery Demo**</a>
 
 The demo contains:
 
