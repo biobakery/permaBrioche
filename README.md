@@ -118,7 +118,15 @@ devtools::install_github(
 
 ## Tutorial
 
-**Read the vignette:**  
+🍞<a href="man/permabrioche_workshop_demo.html"> **Read the permaBrioche Biobakery Demo**</a>
+
+The demo contains:
+
+*   use cases of permaBrioche
+*   fully runnable, easy-to-follow examples
+*   explanation of all functions in the package
+
+📄 **Read the vignette:**  
 `browseVignettes("permabrioche")`
 
 The vignette contains:
