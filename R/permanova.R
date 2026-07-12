@@ -349,6 +349,30 @@ PERMANOVA_repeat_measures_core <- function(
     }
   }
 
+  # --- Warn about singleton blocks ---
+  # A block with only one observation has only one possible within-block
+  # arrangement (itself), so it contributes no permutation variability to
+  # within-block (permute_within) terms' null distribution.
+  if (ncol(permute_within) > 0L) {
+    block_sizes <- table(blocks)
+    n_singletons <- sum(block_sizes == 1)
+    if (n_singletons / length(block_sizes) > 0.5) {
+      warning(sprintf(
+        paste0(
+          "%d of %d block(s) (%.0f%%) contain only a single observation. ",
+          "Singleton blocks contribute no permutation variability to ",
+          "within-block term(s) (%s); their within-block covariate values ",
+          "are never actually shuffled. With a majority of blocks being ",
+          "singletons, null distributions for these terms are driven by a ",
+          "small minority of blocks with >= 2 observations, which may make ",
+          "p-values conservative or coarse-grained."
+        ),
+        n_singletons, length(block_sizes), 100 * n_singletons / length(block_sizes),
+        paste(colnames(permute_within), collapse = ", ")
+      ))
+    }
+  }
+
   # choose permutations for the adonis2 fit used to get R2:
   # by = "margin" needs >= 1 to avoid an internal vegan error
   perm_for_fit <- if (identical(by, "margin")) 1L else 0L
