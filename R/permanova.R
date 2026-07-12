@@ -27,7 +27,7 @@
 #'       single combined row. Historical default behavior of this function.}
 #'     \item{\code{"terms"}}{Sequential (Type I) per-term table. Terms are
 #'       tested in the order given by \code{metadata_order} -- which groups
-#'       all within-block-varying terms before all block-level (static)
+#'       all block-level (static) terms before all within-block-varying
 #'       terms, \strong{not} the order they appear in \code{formula}. Each
 #'       term is adjusted only for terms before it in that order.}
 #'     \item{\code{"margin"}}{Marginal per-term table. Each term is tested
@@ -57,8 +57,9 @@
 #'
 #' When \code{by = "terms"}, the sequential order tested is determined by
 #' within- vs. across-block variation, not by the order terms appear in
-#' \code{formula}. If adjustment order matters for interpretation, prefer
-#' \code{by = "margin"}, which is order-independent.
+#' \code{formula} -- block-level (static) terms are tested first, followed by
+#' within-block-varying terms. If adjustment order matters for interpretation,
+#' prefer \code{by = "margin"}, which is order-independent.
 #'
 #' @examples
 #' ## ---- minimal runnable example ----
@@ -222,7 +223,8 @@ PERMANOVA_repeat_measures <- function(formula,
   rownames(block_data) <- levels(blocks)
 
   # --- 8. Prepare metadata_order for the core engine ---
-  metadata_order <- c(colnames(permute_within), colnames(block_data))
+  # Between-block (static) terms are tested before within-block-varying terms.
+  metadata_order <- c(colnames(block_data), colnames(permute_within))
 
   # --- 9. Call the core engine ---
   res <- PERMANOVA_repeat_measures_core(
@@ -264,7 +266,7 @@ PERMANOVA_repeat_measures <- function(formula,
 PERMANOVA_repeat_measures_core <- function(
     D, permute_within, blocks = NULL, block_data,
     permutations = 999,
-    metadata_order = c(names(permute_within), names(block_data)),
+    metadata_order = c(names(block_data), names(permute_within)),
     na.rm = FALSE,
     center_R2 = FALSE,
     by = NULL) {
