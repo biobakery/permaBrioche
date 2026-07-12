@@ -577,7 +577,7 @@ hajek_repeat_measures_loc_and_disp <- function(D,
                                                split_ratio = 0.5,
                                                numerical_metadata,
                                                bugs,
-                                               method = "bray",
+                                               method = "euclidean",
                                                covariate_name) {
   if (is.null(blocks)) stop("Provide 'blocks' (subject ids per sample).")
   
