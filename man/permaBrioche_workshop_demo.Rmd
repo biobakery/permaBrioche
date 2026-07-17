@@ -1,0 +1,846 @@
+---
+title: "<span style='color:brown'>permaBrioche</span> Biobakery Workshop Demo"
+subtitle: "Extending PERMANOVA for Repeated-Measures Designs and More Interpretable Effect Sizes"
+author: "BioBakery Workshop"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    highlight: tango
+    code_folding: show
+---
+<style>
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+table th,
+table td {
+  border: 1px solid #999 !important;
+  padding: 8px 12px;
+  text-align: left;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  message   = FALSE,
+  warning   = FALSE,
+  fig.width = 7,
+  fig.height = 4.5
+)
+set.seed(42)
+
+# Silently ensure devtools is available (needed for install_github below)
+if (!requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("devtools")
+}
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+```
+
+---
+
+# Overview
+
+<div style="font-size: 1.2em;">
+♦️ Standard PERMANOVA (via `adonis2`) is the workhorse for microbiome association
+testing. But it has two well-documented blind spots that require careful consideration:
+</div>
+
+| Problem | What goes wrong | What permaBrioche does |
+|---|---|---|
+| **Invalid permutations under repeated-measures designs** | Excess false positives (small p-values) for subject-level covariates | Confounding-aware block permutations |
+| **Inflated R² under null, even without repeated-measures** | R² > 0 even under the null (no true association) | Null-centered R² or Hájek effect size |
+
+<div style="font-size: 1.2em;">
+♦️
+This demo walks through both problems live, using HMP2 microbiome data
+bundled with the package.
+</div>
+
+---
+
+
+# Installation
+
+```{r, results='hide'}
+devtools::install_github("biobakery/permabrioche")
+```
+
+**GitHub:** https://github.com/biobakery/permabrioche  
+**Questions / issues:** https://github.com/biobakery/permabrioche/issues
+
+---
+
+
+
+# Setup
+
+```{r load-packages}
+library(permabrioche)   # our package
+library(vegan)          # for vegdist; adonis2 comparison
+library(ggplot2)        # for plotting
+set.seed(1234)
+```
+
+<div style="font-size: 1.2em;">
+♦️ We'll use data derived from the <strong>Human Microbiome Project 2 (HMP2)</strong>,
+a longitudinal study following individuals over time with repeated stool sampling. It's already saved in the package - we just have to load it:
+</div>
+
+```{r load-data1}
+d_name    <- load(system.file("extdata", "d_hmp.Rda",    package = "permabrioche"))
+bugs_name <- load(system.file("extdata", "bugs_hmp.Rda", package = "permabrioche"))
+
+meta <- get(d_name)
+bugs <- get(bugs_name)
+
+# Align row names
+rownames(meta) <- meta$sample
+stopifnot(identical(rownames(meta), rownames(bugs)))
+
+# Downsample to 25 subjects for live demo
+keep_subjects <- sample(unique(meta$subject), 25)
+meta <- meta[meta$subject %in% keep_subjects, ]
+bugs <- bugs[rownames(meta), ]
+```
+
+<div style="font-size: 1.2em;">
+♦️ We have 343 samples from 25 subjects, each containing abundances of 100 taxa :
+</div>
+```{r load-data2}
+cat("Samples:", nrow(meta), "\n")
+cat("Subjects:", length(unique(meta$subject)), "\n")
+cat("Taxa:", ncol(bugs), "\n")
+```
+
+### Data structure
+<div style="font-size: 1.2em;">
+♦️ Let's use the 'head' function to double check that each subject appears multiple times (longitudinal samples). We will show that using standard adonis2 on this type of data can be problematic (and what you should do instead):
+</div>
+
+```{r glimpse-meta}
+knitr::kable(head(meta[, c("sample", "subject")], 8),
+             caption = "First few rows of sample-level metadata")
+```
+
+```{r glimpse-bugs}
+colnames(bugs) <- paste0("bug", seq_len(ncol(bugs)))   # tidy display
+knitr::kable(head(bugs[, 1:6]), caption = "First few rows of the abundance data")
+```
+
+### Create the distance matrix
+
+<div style="font-size: 1.2em;">
+♦️ One of the main ingredients in a PERMANOVA is the distance matrix. Just like normal, we can use 'vegdist' from the 'vegan' package to get our distance matrix:
+</div>
+
+```{r dist-matrix}
+dist_bc <- vegdist(bugs, method = "bray")
+```
+
+```{r illustrative-group-diff, echo=FALSE, fig.cap="Visualized example of microbial abundances across two groups"}
+set.seed(1234)
+# Simulate a binary covariate with a REAL compositional effect (for illustration only —
+# contrast this with `exposure_invariant` later, which has NO true effect by construction)
+illus_group <- sample(c("Group A", "Group B"), nrow(bugs), replace = TRUE)
+
+# Nudge a handful of taxa up/down in Group B to create a visible compositional shift
+bugs_illus <- bugs
+shift_taxa <- colnames(bugs)[1:10]
+bugs_illus[illus_group == "Group B", shift_taxa] <-
+  bugs_illus[illus_group == "Group B", shift_taxa] * 5
+
+dist_illus_group <- vegdist(bugs_illus, method = "bray")
+mds_illus <- cmdscale(dist_illus_group, k = 2)
+
+ord_illus_df <- data.frame(
+  MDS1  = mds_illus[, 1],
+  MDS2  = mds_illus[, 2],
+  group = illus_group
+)
+
+ggplot(ord_illus_df, aes(x = MDS1, y = MDS2, color = group)) +
+  geom_point(size = 2, alpha = 0.8) +
+  labs(
+    title    = "Simulated example of two microbiome groups",
+    x = "PCoA Axis 1", y = "PCoA Axis 2", color = NULL
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+<div style="font-size: 1.2em;">
+♦️ PERMANOVA answers the question of <em>"are the abundances of these two groups <span style='color:brown'>actually different</span> or is it just due to chance?"</em>
+</div>
+---
+
+# <span style="color:brown">Problem 1</span> — Repeat Measures → Invalid Permutations → False Positives
+
+<div style="font-size: 1.2em;">
+♦️ Now we will show that if you have repeated measures in your data, the p-values from adonis2 will be inflated with false positives. This means that these p-values are misleadingly low and are **not statistically valid**.
+</div>
+
+ <div style="font-size: 1.2em;">
+❇️ **Question**: What is a "repeated measure"?
+</div>
+
+<div style="font-size: 1.2em;">
+💠 GOAL: Imagine we want to know whether **delivery mode** is associated with gut microbiome
+composition.
+
+♦️ We simulate delivery mode here by assigning a random binary label **at the subject
+level** — so by construction there is **no true association**:
+</div>
+
+```{r simulate-invariant}
+set.seed(1234)
+# Assign a random binary exposure CONSTANT within subject — true effect = 0
+subjects    <- unique(meta$subject)
+subj_labels <- setNames(
+  sample(c(0, 1), length(subjects), replace = TRUE),
+  subjects
+)
+meta$exposure_invariant <- subj_labels[meta$subject]
+
+cat("Exposure is invariant within subject:\n")
+table(meta$subject, meta$exposure_invariant)[1:5, ]
+```
+
+<div style="font-size: 1.2em;">
+♦️From the following illustration, you can see that our data has **repeated measures**. Within the two groups, there are multiple samples from the same subjects.
+</div>
+
+```{r subject-ordination, echo=FALSE, cache=TRUE}
+set.seed(3)
+# Sample 3 subjects from each exposure group for a balanced illustration
+subjects_0 <- sample(names(subj_labels)[subj_labels == 0], 3)
+subjects_1 <- sample(names(subj_labels)[subj_labels == 1], 3)
+illustration_subjects <- c(subjects_0, subjects_1)
+
+meta_illus <- meta[meta$subject %in% illustration_subjects, ]
+bugs_illus <- bugs[rownames(meta_illus), ]
+
+dist_illus <- vegdist(bugs_illus, method = "bray")
+mds <- cmdscale(dist_illus, k = 2)
+
+ord_df <- data.frame(
+  MDS1      = mds[, 1],
+  MDS2      = mds[, 2],
+  subject   = factor(meta_illus$subject),
+  exposure  = factor(meta_illus$exposure_invariant, labels = c("Exposure = 0", "Exposure = 1"))
+)
+
+ggplot(ord_df, aes(x = MDS1, y = MDS2, color = exposure, shape = subject)) +
+  geom_point(size = 3, alpha = 0.85) +
+  labs(
+    title    = "Data clusters primarily by subjectID and that is the root of all evils",
+    x = "PCoA Axis 1", y = "PCoA Axis 2",
+    color = NULL, shape = "Subject"
+  ) +
+  theme_minimal(base_size = 13)
+set.seed(1234)
+```
+
+## What standard adonis2 does
+
+<div style="font-size: 1.2em;">
+♦️ Standard `adonis2` permutes sample labels **without regard to which samples
+belong to the same subject**. Because subjects cluster strongly in microbiome
+space, the null distribution is artificially compressed — incorrectly yielding far too
+many small p-values.
+</div>
+
+<div style="font-size: 1.2em;">
+♦️ Let's see that in action:
+</div>
+
+```{r adonis2-wrong, cache=TRUE}
+set.seed(1234)
+# ---- adonis2: unadjusted (incorrect for repeated measures) ----
+res_adonis_unadj <- adonis2(
+  dist_bc ~ exposure_invariant,
+  data         = meta,
+  permutations = 999
+)
+cat("=== adonis2 (unadjusted) ===\n")
+print(res_adonis_unadj)
+```
+
+```{r adonis2-varsubj, cache=TRUE}
+set.seed(1234)
+# ---- adonis2: adding subject as a covariate (still wrong) ----
+res_adonis_varsubj <- adonis2(
+  dist_bc ~ subject + exposure_invariant,
+  data         = meta,
+  permutations = 999,
+  by = "terms"
+)
+cat("=== adonis2 (exposure + subject) ===\n")
+print(res_adonis_varsubj)
+```
+
+> **Key point:** Even when you add `subject` to the formula, `adonis2` still
+> permutes labels across subjects and actually drops invariant variables entirely.
+
+ <div style="font-size: 1.2em;">
+♦️ This p-vaue calculation is an issue for both **invariant** covariates (ones that never change across a
+subject's repeated samples) and **variant** covariates (ones that do change across a subject's repeated samples).
+</div>
+
+# <span style="color:green">Proposed Solution</span>
+
+What permaBrioche does to correct this:
+
+ <div style="font-size: 1.2em;">
+♦️`PERMANOVA_repeat_measures()` permutes invariant covariates **across subjects**
+(not across samples), so the permutation scheme respects the repeated-measures
+structure. For variant covariates, the permutation is done **within subjects**. You do not have to specify which one exists in your data - the function automatically handles it for you 🙂.
+</div>
+
+```{r, echo = FALSE}
+knitr::include_graphics(
+  system.file("extdata", "permutation_schematic.png", package = "permabrioche")
+)
+```
+
+
+```{r permanova-rm, cache=TRUE}
+set.seed(1234)
+res_perm <- PERMANOVA_repeat_measures(
+  formula           = dist_bc ~ exposure_invariant,
+  data              = meta,
+  sample_id         = "sample",
+  blocking_variable = "subject",
+  permutations      = 999
+)
+
+cat("=== permaBrioche: PERMANOVA_repeat_measures ===\n")
+print(res_perm)
+```
+
+> Under the null (no true effect), a valid method should give p ≈ Uniform(0,1).
+> permaBrioche achieves this while a standard run of adonis2 does not.
+
+## Side-by-side comparison
+
+```{r comparison-table, echo=FALSE}
+p_adonis  <- res_adonis_unadj["Model", "Pr(>F)"]
+p_varsubj <- res_adonis_varsubj["subject", "Pr(>F)"]
+# Extract p-value from permaBrioche result
+p_rm_col  <- grep("Pr", colnames(res_perm), value = TRUE)[1]
+p_rm      <- res_perm[1, p_rm_col]
+
+comparison <- data.frame(
+  Method    = c("adonis2 (unadjusted)",
+                "adonis2 (+ subject covariate)",
+                "permaBrioche: PERMANOVA_repeat_measures"),
+  `p-value` = round(c(p_adonis, p_varsubj, p_rm), 4),
+  Valid      = c("❌ No", "❌ No", "✅ Yes"),
+  check.names = FALSE
+)
+knitr::kable(comparison, align = "lrr",
+             caption = "Comparison under the null (true effect = 0)")
+```
+
+
+---
+
+## Feature — `by = "terms"` Support
+
+ <div style="font-size: 1.2em;">
+♦️
+`PERMANOVA_repeat_measures()` now accepts a `by = "terms"` argument (as seen in adonis2), giving
+sequential per-term R² and p-values when your formula has more than one
+covariate — while still respecting the block-permutation structure.
+</div>
+
+```{r by-terms-demo, cache=TRUE}
+set.seed(1234)
+# A second, subject-level covariate alongside exposure_invariant
+meta$batch <- setNames(sample(c("A", "B"), length(subjects), replace = TRUE),
+                        subjects)[meta$subject]
+
+res_perm_by_terms <- PERMANOVA_repeat_measures(
+  formula           = dist_bc ~ exposure_invariant + batch,
+  data              = meta,
+  sample_id         = "sample",
+  blocking_variable = "subject",
+  permutations      = 10, 
+  by                = "terms"
+)
+
+cat("=== permaBrioche: by = 'terms' ===\n")
+print(res_perm_by_terms)
+```
+
+ <div style="font-size: 1.2em;">
+♦️ Each term now gets its own block-aware R² and p-value, tested sequentially — terms are grouped by variation structure (subject-level-static terms tested first, then within-subject-varying terms), but within each group, your original formula order is preserved, so reordering terms within the same variation type still changes their sequential adjustment.
+</div>
+
+
+---
+
+# <span style="color:brown">Problem 2</span> — Non-centered R²
+
+## Why is it common to see large R² values in microbiome research - even when the true effect is minimal?
+
+ <div style="font-size: 1.2em;">
+♦️ Even when there is actually no association between a covariate and the microbiome (no-association null hypothesis), PERMANOVA R² follows a **Beta distribution
+centered above zero**:
+</div>
+
+$$E_0[R^2] = \frac{g - 1}{N - 1}$$
+
+ <div style="font-size: 1.2em;"> where *g* = number of levels of the covariate of interest and *N* = number of samples. With small N this
+can be substantial.
+</div>
+
+ <div style="font-size: 1.2em;">
+♦️ So as an example, if your data has 30 samples and your covariate has 4 levels, **even though there is no true effect**, your R² will be centered around 0.103! 😯:
+</div>
+
+```{r r2-bias-demo}
+N <- 30 # 30 samples
+g <- 4    # exposure with four levels
+expected_null_R2 <- (g - 1) / (N - 1)
+cat(sprintf(
+  "For example, with N=%d samples and g=%d groups, E[R² | null] = %.3f\n",
+  N, g, expected_null_R2
+))
+```
+
+ <div style="font-size: 1.2em;">
+❇️ **Question**: In microbiome data, we often have small sample sizes. As sample size (N) gets smaller, does this deviation increase or decrease?
+</div>
+
+```{=html}
+<div style="border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0; background-color: #fafafa;">
+
+<div style="display: flex; gap: 30px; flex-wrap: wrap; margin-bottom: 15px;">
+  <div style="flex: 1; min-width: 220px;">
+    <label for="n-slider"><strong>Number of samples (N):</strong> <span id="n-value">30</span></label><br>
+    <input type="range" id="n-slider" min="5" max="200" value="30" step="1" style="width: 100%;">
+  </div>
+  <div style="flex: 1; min-width: 220px;">
+    <label for="g-slider"><strong>Covariate levels (g):</strong> <span id="g-value">4</span></label><br>
+    <input type="range" id="g-slider" min="2" max="10" value="4" step="1" style="width: 100%;">
+  </div>
+</div>
+
+<div style="text-align: center; font-size: 1.3em; margin-bottom: 15px;">
+  E[R² | null] = (g&minus;1)/(N&minus;1) = <strong><span id="r2-value" style="color:#E15759;">0.103</span></strong>
+</div>
+
+<svg id="r2-plot" viewBox="0 0 500 260" style="width: 100%; max-width: 500px; display: block; margin: 0 auto;"></svg>
+
+</div>
+
+<script>
+(function() {
+  const nSlider = document.getElementById('n-slider');
+  const gSlider = document.getElementById('g-slider');
+  const nValue  = document.getElementById('n-value');
+  const gValue  = document.getElementById('g-value');
+  const r2Value = document.getElementById('r2-value');
+  const svg     = document.getElementById('r2-plot');
+
+  const margin = {top: 20, right: 20, bottom: 40, left: 55};
+  const width  = 500 - margin.left - margin.right;
+  const height = 260 - margin.top - margin.bottom;
+  const nMin = 5, nMax = 200;
+
+  function xScale(n) { return margin.left + (n - nMin) / (nMax - nMin) * width; }
+  function yScale(r2) { return margin.top + height - (r2 * height); }
+
+  function render() {
+    const N = parseInt(nSlider.value);
+    const g = parseInt(gSlider.value);
+    const r2 = (g - 1) / (N - 1);
+
+    nValue.textContent = N;
+    gValue.textContent = g;
+    r2Value.textContent = r2.toFixed(3);
+
+    // Build curve path for E[R2] vs N at current g
+    let path = "";
+    for (let n = nMin; n <= nMax; n += 1) {
+      const val = (g - 1) / (n - 1);
+      const x = xScale(n);
+      const y = yScale(val);
+      path += (n === nMin ? "M" : "L") + x + "," + y + " ";
+    }
+
+    let svgContent = `
+      <line x1="${margin.left}" y1="${margin.top + height}" x2="${margin.left + width}" y2="${margin.top + height}" stroke="#333" stroke-width="1"/>
+      <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + height}" stroke="#333" stroke-width="1"/>
+      <text x="${margin.left + width/2}" y="${height + margin.top + 32}" text-anchor="middle" font-size="12" fill="#333">Sample size (N)</text>
+      <text x="15" y="${margin.top + height/2}" text-anchor="middle" font-size="12" fill="#333" transform="rotate(-90 15 ${margin.top + height/2})">E[R\u00b2 | null]</text>
+      <path d="${path}" fill="none" stroke="#4E79A7" stroke-width="2"/>
+      <circle cx="${xScale(N)}" cy="${yScale(r2)}" r="5" fill="#E15759"/>
+      <text x="${xScale(N) + 8}" y="${yScale(r2) - 8}" font-size="12" fill="#E15759">${r2.toFixed(3)}</text>
+    `;
+
+    // Y-axis ticks (0, 0.25, 0.5, 0.75, 1)
+    [0, 0.25, 0.5, 0.75, 1].forEach(function(t) {
+      const y = yScale(t);
+      svgContent += `<line x1="${margin.left - 4}" y1="${y}" x2="${margin.left}" y2="${y}" stroke="#333"/>`;
+      svgContent += `<text x="${margin.left - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#333">${t}</text>`;
+    });
+
+    // X-axis ticks
+    [5, 50, 100, 150, 200].forEach(function(n) {
+      const x = xScale(n);
+      svgContent += `<line x1="${x}" y1="${margin.top + height}" x2="${x}" y2="${margin.top + height + 4}" stroke="#333"/>`;
+      svgContent += `<text x="${x}" y="${margin.top + height + 16}" text-anchor="middle" font-size="10" fill="#333">${n}</text>`;
+    });
+
+    svg.innerHTML = svgContent;
+  }
+
+  nSlider.addEventListener('input', render);
+  gSlider.addEventListener('input', render);
+  render();
+})();
+</script>
+```
+
+
+ <div style="font-size: 1.2em;">
+♦️ In our data, with 343 samples and 2 levels in our covariate, the deviation from 0 is quite small but still meaningful. For small sample sizes and covariates with multiple levels, this deviation increases.
+</div>
+
+```{r r2-simulation, cache=TRUE}
+set.seed(1234)
+# Simulate 200 null R² values using random label permutations
+null_r2 <- replicate(200, {
+  shuffled_exposure <- sample(meta$exposure_invariant)
+  meta$shuffled_exposure <- shuffled_exposure
+  fit <- adonis2(dist_bc ~ shuffled_exposure, data = meta, permutations = 0)
+  fit["Model", "R2"]
+})
+
+# In our case, we can calculate the expected R^2 under the null as
+g <- 2
+N <- nrow(meta)
+expected_null_R2 <- (g - 1) / (N - 1)
+
+ggplot(data.frame(R2 = null_r2), aes(x = R2)) +
+  geom_histogram(bins = 30, fill = "#4E79A7", colour = "white", alpha = 0.85) +
+  geom_vline(xintercept = expected_null_R2, colour = "#E15759", linewidth = 1.2,
+             linetype = "dashed") +
+  geom_vline(xintercept = 0, colour = "black", linewidth = 0.8) +
+  annotate("text", x = expected_null_R2 + 0.003, y = Inf,
+           label = sprintf("E[R²|null] = %.3f", expected_null_R2),
+           hjust = 0, vjust = 2, colour = "#E15759", size = 4) +
+  labs(
+    title    = "Simulated null distribution of PERMANOVA R²",
+    subtitle = "Labels randomly permuted 200 times — true effect is zero",
+    x        = "R²", y        = "Count"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+> The distribution is **entirely above zero** even though there is no real
+> effect. Raw R² can be quite misleading as an effect size.
+
+# <span style="color:green">Proposed Solution 1</span> — Null-centered R²
+
+ <div style="font-size: 1.2em;">
+♦️`PERMANOVA_repeat_measures()` with `center_R2 = TRUE` subtracts the mean
+null R² estimated from the permutation distribution, giving an effect size
+centered at zero under the null:
+</div>
+
+$$\tilde{R}^2 = R^2 - \frac{g-1}{N-1}$$
+
+```{r centered-r2, cache=TRUE}
+set.seed(1234)
+res_perm_centered <- PERMANOVA_repeat_measures(
+  formula           = dist_bc ~ exposure_invariant,
+  data              = meta,
+  sample_id         = "sample",
+  blocking_variable = "subject",
+  permutations      = 999,
+  center_R2         = TRUE
+)
+
+cat("=== permaBrioche: null-centered R² ===\n")
+print(res_perm_centered)
+```
+
+> **Interpretation:** `R2_centered` ≈ 0 confirms no real effect beyond what
+> chance partitioning would produce. Importantly, the p-value is unchanged.
+
+---
+
+# <span style="color:green">Proposed Solution 2</span> — Hájek Distance-Based Effect Size
+
+## A more interpretable effect size
+
+ <div style="font-size: 1.2em;">
+💠 Using the null-centered R² helps us get a more honest value, but the interpretation is still clunky: <em>"The covariate explains roughly X percentage points more of the variance in community 
+dissimilarity than would be expected by chance."</em>
+
+There is nothing wrong with using the null-centered R², but it could be nice to have a more concretely interpretable effect size. This is why we introduce the "Hájek estimator".
+</div>
+
+ <div style="font-size: 1.2em;">
+♦️The Hájek estimator answers:
+</div>
+> *On average, how far does exposure move samples away from the control
+> centroid (center), in units of the chosen dissimilarity metric?*
+
+ <div style="font-size: 1.2em;">
+♦️This is directly interpretable — e.g. "exposure increases Bray-Curtis
+distance from the control centroid by 0.05 units" — unlike the abstract
+variance-explained framing of R².
+</div>
+
+
+```{r hajek-schematic, echo=FALSE}
+set.seed(7)
+
+# Simulated illustrative points (NOT real data) — control cluster vs. exposed cluster
+control_pts <- data.frame(
+  x = rnorm(8, mean = 0, sd = 0.6),
+  y = rnorm(8, mean = 0, sd = 0.6),
+  group = "Control"
+)
+exposed_pts <- data.frame(
+  x = rnorm(8, mean = 1.8, sd = 0.6),
+  y = rnorm(8, mean = 0.5, sd = 0.6),
+  group = "Exposed"
+)
+all_pts <- rbind(control_pts, exposed_pts)
+
+centroid <- data.frame(x = mean(control_pts$x), y = mean(control_pts$y))
+
+# Segments from each exposed point to the control centroid
+segs <- data.frame(
+  x    = exposed_pts$x,
+  y    = exposed_pts$y,
+  xend = centroid$x,
+  yend = centroid$y
+)
+
+ggplot() +
+  geom_segment(data = segs, aes(x = x, y = y, xend = xend, yend = yend),
+               color = "grey60", linetype = "dashed", linewidth = 0.4) +
+  geom_point(data = all_pts, aes(x = x, y = y, color = group), size = 3, alpha = 0.85) +
+  geom_point(data = centroid, aes(x = x, y = y),
+             shape = 8, size = 5, color = "red", stroke = 1.2) +
+  annotate("text", x = centroid$x, y = centroid$y - 0.4,
+           label = "Control centroid", size = 3.8, fontface = "italic") +
+  labs(
+    title    = "What the Hájek estimator measures",
+    subtitle = "Average length of the dashed lines = Effect Size",
+    x = NULL, y = NULL, color = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+```
+
+
+ <div style="font-size: 1.2em;">
+♦️ To use this estimator, we can simply call the following function:
+</div>
+## `hajek_repeat_measures()`
+
+```{r hajek, cache=TRUE}
+set.seed(1234)
+res_hajek <- hajek_repeat_measures(
+  formula           = dist_bc ~ exposure_invariant,
+  data              = meta,
+  bugs              = bugs,
+  sample_id         = "sample",
+  blocking_variable = "subject",
+  covariate_name    = "exposure_invariant",
+  permutations      = 999,
+  method            = "bray"
+)
+
+cat("=== Hájek effect size ===\n")
+cat("Observed τ:", round(res_hajek$observed, 4), "\n")
+cat("p-value:   ", round(res_hajek$pval, 4), "\n")
+```
+
+> **Interpretation:**
+> - **τ ≈ 0** → exposure does not move samples away from the control centroid
+> - **τ > 0** → exposure moves samples farther from the control group
+> - **τ < 0** → exposure moves samples closer to the control group
+>
+> Because our exposure was random, we expect τ ≈ 0 and p ≈ non-significant.
+
+---
+
+# Location–Dispersion Decomposition
+
+## Separating *where* from *how spread out*
+
+ <div style="font-size: 1.2em;">
+♦️ One interesting feature about this estimand is that in the Euclidean distance setting, the Hájek effect decomposes as:
+
+$$\tau = \tau_{\text{location}} + \tau_{\text{dispersion}}$$
+
+- **τ_location**: did the group centroid *shift*? (systematic change in mean
+  composition)
+- **τ_dispersion**: did within-group *variability* change? (increased
+  heterogeneity)
+
+♦️ This is useful because two studies can have the same total τ for completely
+different biological reasons.
+</div>
+
+## `hajek_repeat_measures_loc_and_disp()`
+
+ <div style="font-size: 1.2em;">
+♦️ The final function in permaBrioche allows us to calculate this decomposition:
+
+This function requires data at two levels — sample level and subject level:
+</div>
+
+```{r prep-loc-disp}
+set.seed(1234)
+# --- Sample-level blocking vector ---
+blocks <- meta$subject
+names(blocks) <- meta$sample
+blocks <- blocks[rownames(bugs)]
+
+# --- Sample-level within-subject permutation frame (empty = nothing varies within subject) ---
+permute_within <- data.frame(row.names = rownames(bugs))
+
+# --- Subject-level data ---
+block_data <- aggregate(
+  exposure_invariant ~ subject,
+  data = meta,
+  FUN  = function(x) x[1]
+)
+rownames(block_data) <- block_data$subject
+block_data$subject   <- NULL
+```
+
+ <div style="font-size: 1.2em;">
+♦️ And we put these ingredients into the function in the following manner:
+</div>
+
+```{r loc-disp, cache=TRUE}
+set.seed(1234)
+res_ld <- hajek_repeat_measures_loc_and_disp(
+  D              = dist_bc,
+  permute_within = permute_within,
+  blocks         = blocks,
+  block_data     = block_data,
+  bugs           = bugs,
+  covariate_name = "exposure_invariant"
+)
+
+cat("=== Location–Dispersion Decomposition ===\n")
+print(res_ld)
+```
+
+ <div style="font-size: 1.2em;">
+♦️ We can use ggplot to nicely format and display this decomposition:
+</div>
+
+```{r loc-disp-plot, echo=TRUE}
+set.seed(1234)
+# Extract components for a simple visual summary
+components <- data.frame(
+  Component = c("Total (τ)", "Location (τ_loc)", "Dispersion (τ_disp)"),
+  Value     = c(
+    res_ld$observed_tau,
+    res_ld$observed_loc,
+    res_ld$observed_disp
+  )
+)
+
+ggplot(components, aes(x = Component, y = Value, fill = Component)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_hline(yintercept = 0, linewidth = 0.8) +
+  scale_fill_manual(values = c("#4E79A7", "#59A14F", "#F28E2B")) +
+  labs(
+    title    = "Hájek effect size decomposition",
+    subtitle = "Location = centroid shift · Dispersion = variability change",
+    y        = "Effect size (Euclidean units)", x        = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(size = 11))
+```
+
+ <div style="font-size: 1.2em;">
+❇️ **Question**: Which of the following two outputs would indicate a **systematic** compositional shift rather than just indicating that one group is more heterogeneous?
+</div>
+
+> Large **location**, small **dispersion** 
+
+> Large **dispersion**, small **location** 
+
+---
+
+# <span style="color:navy">Complete Function Summary</span>
+
+| Function | What it does | Key argument |
+|---|---|---|
+| `PERMANOVA_repeat_measures()` | Valid hypothesis test | `blocking_variable` |
+| `PERMANOVA_repeat_measures(..., center_R2 = TRUE)` | + Null-centered R² | `center_R2 = TRUE` |
+| `hajek_repeat_measures()` | Interpretable distance effect size | `covariate_name`, `method` |
+| `hajek_repeat_measures_loc_and_disp()` | Decomposes effect into location + dispersion | `block_data`, `blocks` |
+
+---
+
+# When to Use Which
+
+```
+Do you have longitudinal / clustered microbiome data?
+│
+├─ Is your covariate INVARIANT within subject? (the function will figure 
+this out for you automatically)
+│   (e.g. sex, delivery mode, genotype, treatment arm)
+│   └─→ PERMANOVA_repeat_measures()   ← between-block permutations
+│
+└─ Is your covariate VARIANT within subject? (the function will figure 
+this out for you automatically)
+    (e.g. diet, medication use)
+    └─→ PERMANOVA_repeat_measures()   ← within-block permutations
+
+Do you want an interpretable effect size?
+└─→ hajek_repeat_measures()
+
+Do you want to understand HOW the microbiome changed?
+└─→ hajek_repeat_measures_loc_and_disp()   (Euclidean distance)
+
+Do you want a null-corrected variance summary?
+└─→ PERMANOVA_repeat_measures(..., center_R2 = TRUE)
+```
+
+---
+
+# Take-Home Messages
+
+ <div style="font-size: 1.2em;">
+🥇 1. **adonis2 alone is not valid for repeated-measures data.** Even adding
+   subject as a covariate does not fix the permutation scheme for invariant
+   covariates — false positive rates can exceed 70% on HMP2 data.
+
+🥈 2. **PERMANOVA R² is upwardly inflated under the null.** A significant 
+positive R² does not necessarily imply a real effect. Use null-centered R² or 
+the Hájek estimator instead.
+
+🥉️ 3. **The Hájek estimator gives you a geometrically interpretable effect size**
+   in the units of your chosen dissimilarity metric — something R² does not
+   provide, and the location–dispersion decomposition tells you *whether* a covariate
+   shifts the centroid, increases heterogeneity, or both.
+   
+💠 **Overall**: When running PERMANOVA on any microbiome dataset, make sure the permutation scheme respects its structure, and consider pairing your R² with a null-centered effect size. 😄
+</div>
+
+---
+
