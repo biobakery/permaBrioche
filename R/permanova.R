@@ -375,7 +375,7 @@ PERMANOVA_repeat_measures_core <- function(
 
   # choose permutations for the adonis2 fit used to get R2:
   # by = "margin" needs >= 1 to avoid an internal vegan error
-  perm_for_fit <- if (identical(by, "margin")) 1L else 0L
+  perm_for_fit <- if (identical(by, "margin")) 9L else 0L
 
   mtdat <- cbind(permute_within, block_data[blocks,,drop=FALSE])
   ad    <- vegan::adonis2(D ~ ., permutations = perm_for_fit, by = by, data = mtdat[, metadata_order, drop=FALSE])
