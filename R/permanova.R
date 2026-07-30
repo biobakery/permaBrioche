@@ -1,9 +1,11 @@
-#' PERMANOVA for Repeated Measures (Block-Aware, macOS-safe)
+#' PERMANOVA for Repeated Measures
 #'
 #' A convenience wrapper to run a block-aware permutation test for adonis
 #' under a reduced model, preserving subject/cluster structure. Internally uses
 #' \code{vegan::adonis2} and \code{permute} to create within-block
 #' permutations and between-block shuffles of static (block-level) covariates.
+#' All terms on the right-hand side of the formula are tested jointly as a
+#' single omnibus test.
 #'
 #' @param formula A model formula of the form \code{D ~ X1 + X2 + ...}, where
 #'   \code{D} is a \code{\link{dist}} object compatible with \code{vegan::adonis2}.
@@ -18,30 +20,15 @@
 #' @param na.rm Logical; if \code{TRUE}, samples with any missing metadata are dropped
 #'   in a block-aware manner; otherwise an error is thrown if any NA are present.
 #' @param center_R2 Logical; if \code{TRUE}, subtracts the mean of the
-#'   permutation null R\eqn{^2} distribution from the observed R\eqn{^2}
-#'   for each term, returning a \code{R2_centered} column.
-#' @param by \code{NULL} (default), \code{"terms"}, or \code{"margin"}; passed
-#'   to \code{vegan::adonis2}'s \code{by} argument.
-#'   \describe{
-#'     \item{\code{NULL}}{Omnibus test: all RHS terms tested jointly as a
-#'       single combined row. Historical default behavior of this function.}
-#'     \item{\code{"terms"}}{Sequential (Type I) per-term table. Terms are
-#'       tested in the order given by \code{metadata_order} -- which groups
-#'       all block-level (static) terms before all within-block-varying
-#'       terms, \strong{not} the order they appear in \code{formula}. Each
-#'       term is adjusted only for terms before it in that order.}
-#'     \item{\code{"margin"}}{Marginal per-term table. Each term is tested
-#'       adjusted for all other terms regardless of order, avoiding the
-#'       reordering caveat above.}
-#'   }
+#'   permutation null R\eqn{^2} distribution from the observed R\eqn{^2},
+#'   returning a \code{R2_centered} column.
 #'
-#' @return A \code{vegan::adonis} table (from \code{adonis2}) with an added
-#'   \code{Pr(>F)} column computed from the custom null and an optional
-#'   \code{na.removed} attribute if \code{na.rm=TRUE}. A descriptive \code{"heading"}
-#'   attribute is also added. The number of term rows depends on \code{by}:
-#'   one combined row when \code{by = NULL}, or one row per RHS term when
-#'   \code{by = "terms"} or \code{by = "margin"} -- in all cases followed by
-#'   \code{Residual} and \code{Total} rows.
+#' @return A \code{vegan::adonis2} table with one combined model row (omnibus
+#'   test of all RHS terms jointly), followed by \code{Residual} and
+#'   \code{Total} rows. The \code{Pr(>F)} column is computed from the
+#'   block-aware permutation null rather than \code{adonis2}'s internal
+#'   permutation. An optional \code{na.removed} attribute is included if
+#'   \code{na.rm = TRUE}.
 #'   If \code{center_R2 = TRUE}, an additional \code{R2_centered} column is
 #'   included, and the mean null R\eqn{^2} values are stored in the
 #'   \code{"null_means_R2"} attribute.
@@ -52,14 +39,14 @@
 #' across all samples of the same block. During permutation, the within-block
 #' variables are permuted respecting the block structure, and the static
 #' block-level variables are shuffled across block identities and then reassigned
-#' to samples by their block membership. This yields a reduced-model style
-#' permutation respecting repeated measures.
+#' to samples by their block membership. This yields a permutation that respects
+#' the repeated-measures structure.
 #'
-#' When \code{by = "terms"}, the sequential order tested is determined by
-#' within- vs. across-block variation, not by the order terms appear in
-#' \code{formula} -- block-level (static) terms are tested first, followed by
-#' within-block-varying terms. If adjustment order matters for interpretation,
-#' prefer \code{by = "margin"}, which is order-independent.
+#' All right-hand-side terms are tested jointly as a single omnibus null
+#' hypothesis (i.e., no covariate is associated with the outcome). This test
+#' is exact under between- and within-subject exchangeability; see Appendix
+#' for a formal proof. Per-term sequential or marginal tests are not supported
+#' by this function.
 #'
 #' @examples
 #' ## ---- minimal runnable example ----
@@ -70,13 +57,21 @@
 #' N      <- n_subj * reps
 #'
 #' subject <- factor(rep(seq_len(n_subj), each = reps))
-#' X <- rnorm(N)
-#' Z <- rep(rnorm(n_subj), each = reps)
+#'
+#' # Variant covariates: one value per observation, varying within subjects
+#' X_var <- rnorm(N)
+#' Z_var <- rnorm(N)
+#'
+#' # Invariant covariates: one value per subject, constant within subjects
+#' X_inv <- rep(rnorm(n_subj), each = reps)
+#' Z_inv <- rep(rnorm(n_subj), each = reps)
 #'
 #' meta <- data.frame(
 #'   subject = subject,
-#'   X = X,
-#'   Z = Z,
+#'   X_var   = X_var,
+#'   Z_var   = Z_var,
+#'   X_inv   = X_inv,
+#'   Z_inv   = Z_inv,
 #'   row.names = paste0("id", seq_len(N))
 #' )
 #'
@@ -85,36 +80,42 @@
 #'
 #' D <- vegan::vegdist(mat, method = "bray")
 #'
-#' ## omnibus test (default)
+#' ## omnibus test (single variant covariate)
 #' PERMANOVA_repeat_measures(
-#'   D ~ X + Z,
+#'   D ~ X_var,
 #'   data = meta,
 #'   blocking_variable = "subject",
 #'   permutations = 49
 #' )
 #'
-#' ## sequential per-term table
+#' ## omnibus test (single invariant covariate)
 #' PERMANOVA_repeat_measures(
-#'   D ~ X + Z,
+#'   D ~ X_inv,
 #'   data = meta,
 #'   blocking_variable = "subject",
-#'   permutations = 49,
-#'   by = "terms"
+#'   permutations = 49
 #' )
 #'
-#' ## marginal per-term table (order-independent)
+#' ## omnibus test (multiple variant covariates -- same type, exact test)
 #' PERMANOVA_repeat_measures(
-#'   D ~ X + Z,
+#'   D ~ X_var + Z_var,
 #'   data = meta,
 #'   blocking_variable = "subject",
-#'   permutations = 49,
-#'   by = "margin"
+#'   permutations = 49
+#' )
+#'
+#' ## omnibus test (multiple invariant covariates -- same type, exact test)
+#' PERMANOVA_repeat_measures(
+#'   D ~ X_inv + Z_inv,
+#'   data = meta,
+#'   blocking_variable = "subject",
+#'   permutations = 49
 #' )
 #'
 #' \donttest{
 #' ## ---- larger example ----
 #' PERMANOVA_repeat_measures(
-#'   D ~ X,
+#'   D ~ X_var,
 #'   data = meta,
 #'   blocking_variable = "subject",
 #'   permutations = 99
@@ -135,8 +136,8 @@ PERMANOVA_repeat_measures <- function(formula,
                                       blocking_variable = "subject",
                                       permutations = 999,
                                       na.rm = FALSE,
-                                      center_R2 = FALSE,
-                                      by = NULL) {
+                                      center_R2 = FALSE) {
+  by = NULL
   
   if (!is.null(by) && !by %in% c("terms", "margin"))
     stop('`by` must be NULL, "terms", or "margin"')
