@@ -72,7 +72,7 @@ bundled with the package.
 # Installation
 
 ```{r, results='hide'}
-devtools::install_github("biobakery/permabrioche")
+devtools::install_github("biobakery/permabrioche", force = TRUE)
 ```
 
 **GitHub:** https://github.com/biobakery/permabrioche  
@@ -353,38 +353,7 @@ knitr::kable(comparison, align = "lrr",
 
 ---
 
-## Feature — `by = "terms"` Support
-
- <div style="font-size: 1.2em;">
-♦️
-`PERMANOVA_repeat_measures()` now accepts a `by = "terms"` argument (as seen in adonis2), giving
-sequential per-term R² and p-values when your formula has more than one
-covariate — while still respecting the block-permutation structure.
-</div>
-
-```{r by-terms-demo, cache=TRUE}
-set.seed(1234)
-# A second, subject-level covariate alongside exposure_invariant
-meta$batch <- setNames(sample(c("A", "B"), length(subjects), replace = TRUE),
-                        subjects)[meta$subject]
-
-res_perm_by_terms <- PERMANOVA_repeat_measures(
-  formula           = dist_bc ~ exposure_invariant + batch,
-  data              = meta,
-  sample_id         = "sample",
-  blocking_variable = "subject",
-  permutations      = 10, 
-  by                = "terms"
-)
-
-cat("=== permaBrioche: by = 'terms' ===\n")
-print(res_perm_by_terms)
-```
-
- <div style="font-size: 1.2em;">
-♦️ Each term now gets its own block-aware R² and p-value, tested sequentially — terms are grouped by variation structure (subject-level-static terms tested first, then within-subject-varying terms), but within each group, your original formula order is preserved, so reordering terms within the same variation type still changes their sequential adjustment.
-</div>
-
+<div style="font-size: 1.2em;"> ♦️ `PERMANOVA_repeat_measures()` can also handle formulas with **multiple covariates of the same type** on the right-hand side. For example, if all covariates are invariant within subjects (e.g., sex, treatment arm, genotype), the function performs the appropriate between-subject permutations for each term. Likewise, if all covariates vary within subjects (e.g., diet, medication use, time-varying biomarkers), it automatically uses within-subject permutations. No additional arguments are required. **However** it does not support formulas with multiple covariates of differing types (e.g. sex and medication use).</div>
 
 ---
 
