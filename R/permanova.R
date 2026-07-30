@@ -206,6 +206,28 @@ PERMANOVA_repeat_measures <- function(formula,
   )
   static_vars <- sapply(agg_res[, -1, drop = FALSE], all)  # logical named vector
 
+    ## Disallow mixing static and varying covariates on the RHS
+  if (any(static_vars) && any(!static_vars)) {
+    static_names  <- names(static_vars)[static_vars]
+    varying_names <- names(static_vars)[!static_vars]
+
+    stop(
+      paste0(
+        "All right-hand-side covariates must be of the same type with ",
+        "respect to the blocking variable '", blocking_variable, "'.\n",
+        "Currently detected:\n",
+        "  - Block-invariant (static within blocks): ",
+        paste(static_names, collapse = ", "), "\n",
+        "  - Within-block varying: ",
+        paste(varying_names, collapse = ", "), "\n\n",
+        "You are requesting a single omnibus test that combines both types, ",
+        "which this implementation does not support. Please fit separate ",
+        "models using only static or only within-block varying covariates."
+      ),
+      call. = FALSE
+    )
+  }
+
   # --- 6. Split into permute_within (varying) and block_data_full (static) ---
   permute_within  <- rhs_only[, names(static_vars)[!static_vars], drop = FALSE]
   block_data_full <- rhs_only[, names(static_vars)[static_vars],  drop = FALSE]
