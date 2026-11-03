@@ -14,7 +14,7 @@ longitudinal sampling are common.
 
 permaBrioche addresses two well‑known limitations of standard PERMANOVA:
 
-1. **Invalid permutation schemes** under subject‑level confounding  
+1. **Unrestricted permutation schemes** under subject‑level confounding  
    (e.g., longitudinal designs)
 2. **Upward bias and poor interpretability of the PERMANOVA $R^2$ effect size**
 
