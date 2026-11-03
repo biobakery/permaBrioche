@@ -52,13 +52,13 @@ if (!requireNamespace("ggplot2", quietly = TRUE)) {
 
 <div style="font-size: 1.2em;">
 ♦️ Standard PERMANOVA (via `adonis2`) is the workhorse for microbiome association
-testing. But it has two well-documented blind spots that require careful consideration:
+testing. Two issues need careful attention in practice:
 </div>
 
-| Problem | What goes wrong | What permaBrioche does |
+| Issue | What goes wrong | What permaBrioche does |
 |---|---|---|
-| **Invalid permutations under repeated-measures designs** | Excess false positives (small p-values) for subject-level covariates | Confounding-aware block permutations |
-| **Inflated R² under null, even without repeated-measures** | R² > 0 even under the null (no true association) | Null-centered R² or Hájek effect size |
+| **Unrestricted permutations under repeated-measures designs** | Excess false positives (small p-values) when permutations ignore subject structure | Chooses within- or between-subject permutations automatically, including for unbalanced designs |
+| **Inflated R² under null, even without repeated measures** | R² > 0 even under the null (no true association) | Null-centered R² or Hájek effect size |
 
 <div style="font-size: 1.2em;">
 ♦️
@@ -124,7 +124,7 @@ cat("Taxa:", ncol(bugs), "\n")
 
 ### Data structure
 <div style="font-size: 1.2em;">
-♦️ Let's use the 'head' function to double check that each subject appears multiple times (longitudinal samples). We will show that using standard adonis2 on this type of data can be problematic (and what you should do instead):
+♦️ Let's use the 'head' function to double check that each subject appears multiple times (longitudinal samples). We will show what happens when permutations ignore this structure, and which permutation designs handle it correctly:
 </div>
 
 ```{r glimpse-meta}
@@ -182,10 +182,12 @@ ggplot(ord_illus_df, aes(x = MDS1, y = MDS2, color = group)) +
 </div>
 ---
 
-# <span style="color:brown">Problem 1</span> — Repeat Measures → Invalid Permutations → False Positives
+# <span style="color:brown">Problem 1</span> — Repeated Measures → Unrestricted Permutations → False Positives
 
 <div style="font-size: 1.2em;">
-♦️ Now we will show that if you have repeated measures in your data, the p-values from adonis2 will be inflated with false positives. This means that these p-values are misleadingly low and are **not statistically valid**.
+♦️ If your data have repeated measures and the permutations ignore which samples
+belong to the same subject (the default in `adonis2`), p-values will be too small,
+producing false positives.
 </div>
 
  <div style="font-size: 1.2em;">
@@ -241,7 +243,7 @@ ord_df <- data.frame(
 ggplot(ord_df, aes(x = MDS1, y = MDS2, color = exposure, shape = subject)) +
   geom_point(size = 3, alpha = 0.85) +
   labs(
-    title    = "Data clusters primarily by subjectID and that is the root of all evils",
+    title    = "Samples cluster primarily by subject",
     x = "PCoA Axis 1", y = "PCoA Axis 2",
     color = NULL, shape = "Subject"
   ) +
@@ -249,60 +251,80 @@ ggplot(ord_df, aes(x = MDS1, y = MDS2, color = exposure, shape = subject)) +
 set.seed(1234)
 ```
 
-## What standard adonis2 does
+## What `adonis2` does by default
 
 <div style="font-size: 1.2em;">
-♦️ Standard `adonis2` permutes sample labels **without regard to which samples
-belong to the same subject**. Because subjects cluster strongly in microbiome
-space, the null distribution is artificially compressed — incorrectly yielding far too
-many small p-values.
+♦️ By default, `adonis2` permutes sample labels **without regard to which samples
+belong to the same subject**. Because samples cluster strongly by subject, the
+permutation null is too narrow, yielding too many small p-values:
 </div>
 
-<div style="font-size: 1.2em;">
-♦️ Let's see that in action:
-</div>
-
-```{r adonis2-wrong, cache=TRUE}
+```{r adonis2-unrestricted, cache=TRUE}
 set.seed(1234)
-# ---- adonis2: unadjusted (incorrect for repeated measures) ----
 res_adonis_unadj <- adonis2(
   dist_bc ~ exposure_invariant,
   data         = meta,
-  permutations = 999
+  permutations = 999        # unrestricted: ignores subject
 )
-cat("=== adonis2 (unadjusted) ===\n")
-print(res_adonis_unadj)
+res_adonis_unadj
 ```
+
+<div style="font-size: 1.2em;">
+♦️ Adding `subject` to the model does not help for a subject-level covariate:
+`exposure_invariant` is constant within subject, so it is completely explained by
+`subject` and has no row left in the table.
+</div>
 
 ```{r adonis2-varsubj, cache=TRUE}
 set.seed(1234)
-# ---- adonis2: adding subject as a covariate (still wrong) ----
 res_adonis_varsubj <- adonis2(
   dist_bc ~ subject + exposure_invariant,
   data         = meta,
   permutations = 999,
-  by = "terms"
+  by           = "terms"
 )
-cat("=== adonis2 (exposure + subject) ===\n")
-print(res_adonis_varsubj)
+res_adonis_varsubj
 ```
 
-> **Key point:** Even when you add `subject` to the formula, `adonis2` still
-> permutes labels across subjects and actually drops invariant variables entirely.
+## Restricted permutations in `adonis2`
 
- <div style="font-size: 1.2em;">
-♦️ This p-vaue calculation is an issue for both **invariant** covariates (ones that never change across a
-subject's repeated samples) and **variant** covariates (ones that do change across a subject's repeated samples).
+<div style="font-size: 1.2em;">
+♦️ `adonis2` supports restricted permutations through the **permute** package,
+and these are the right tools whenever they apply:
+
+- **Within-subject permutation**, `how(blocks = subject)`, is correct for
+  **variant** covariates (ones that change across a subject's samples). For an
+  invariant covariate it cannot move any labels, so every permutation equals the
+  observed data and p = 1:
 </div>
+
+```{r adonis2-within, cache=TRUE}
+set.seed(1234)
+h_within <- how(blocks = meta$subject, nperm = 999)
+adonis2(dist_bc ~ exposure_invariant, data = meta, permutations = h_within)
+```
+
+<div style="font-size: 1.2em;">
+- **Whole-subject permutation** is correct for **invariant** covariates, but
+  requires every subject to contribute the same number of samples. Here, as in
+  most longitudinal studies, they do not:
+</div>
+
+```{r adonis2-whole, error=TRUE}
+table(table(meta$subject))   # number of subjects with each sample count
+
+h_whole <- how(plots  = Plots(strata = meta$subject, type = "free"),
+               within = Within(type = "none"), nperm = 999)
+adonis2(dist_bc ~ exposure_invariant, data = meta, permutations = h_whole)
+```
 
 # <span style="color:green">Proposed Solution</span>
 
-What permaBrioche does to correct this:
-
- <div style="font-size: 1.2em;">
-♦️`PERMANOVA_repeat_measures()` permutes invariant covariates **across subjects**
-(not across samples), so the permutation scheme respects the repeated-measures
-structure. For variant covariates, the permutation is done **within subjects**. You do not have to specify which one exists in your data - the function automatically handles it for you 🙂.
+<div style="font-size: 1.2em;">
+♦️ `PERMANOVA_repeat_measures()` uses the same within-subject restriction as
+`how(blocks = subject)` for variant covariates, and for invariant covariates it
+reassigns covariate values **across subjects**, which does not require equal
+numbers of samples per subject. It detects which case applies automatically 🙂.
 </div>
 
 ```{r, echo = FALSE}
@@ -310,7 +332,6 @@ knitr::include_graphics(
   system.file("extdata", "permutation_schematic.png", package = "permabrioche")
 )
 ```
-
 
 ```{r permanova-rm, cache=TRUE}
 set.seed(1234)
@@ -321,33 +342,35 @@ res_perm <- PERMANOVA_repeat_measures(
   blocking_variable = "subject",
   permutations      = 999
 )
-
-cat("=== permaBrioche: PERMANOVA_repeat_measures ===\n")
-print(res_perm)
+res_perm
 ```
 
-> Under the null (no true effect), a valid method should give p ≈ Uniform(0,1).
-> permaBrioche achieves this while a standard run of adonis2 does not.
+> Under the null (no true effect), a valid method should give p ≈ Uniform(0,1)
+> across repeated experiments; unrestricted permutation does not.
 
 ## Side-by-side comparison
 
 ```{r comparison-table, echo=FALSE}
-p_adonis  <- res_adonis_unadj["Model", "Pr(>F)"]
-p_varsubj <- res_adonis_varsubj["subject", "Pr(>F)"]
-# Extract p-value from permaBrioche result
-p_rm_col  <- grep("Pr", colnames(res_perm), value = TRUE)[1]
-p_rm      <- res_perm[1, p_rm_col]
+p_rm_col <- grep("Pr", colnames(res_perm), value = TRUE)[1]
 
 comparison <- data.frame(
-  Method    = c("adonis2 (unadjusted)",
-                "adonis2 (+ subject covariate)",
-                "permaBrioche: PERMANOVA_repeat_measures"),
-  `p-value` = round(c(p_adonis, p_varsubj, p_rm), 4),
-  Valid      = c("❌ No", "❌ No", "✅ Yes"),
+  Method = c("adonis2, unrestricted permutations",
+             "adonis2, subject + exposure",
+             "adonis2 + how(blocks = subject)",
+             "adonis2 + whole-subject permutations",
+             "permaBrioche: PERMANOVA_repeat_measures"),
+  `p-value` = c(round(res_adonis_unadj["Model", "Pr(>F)"], 4),
+                "—", "1", "—",
+                round(res_perm[1, p_rm_col], 4)),
+  Notes = c("❌ Ignores subject structure (false positive)",
+            "❌ Exposure is aliased with subject; no test of exposure",
+            "Correct for variant covariates; cannot permute an invariant one",
+            "✅ Correct for invariant covariates, but requires balanced subjects (not run)",
+            "✅ Correct here; handles unbalanced designs"),
   check.names = FALSE
 )
-knitr::kable(comparison, align = "lrr",
-             caption = "Comparison under the null (true effect = 0)")
+knitr::kable(comparison, align = "lcl",
+             caption = "Invariant covariate under the null (true effect = 0)")
 ```
 
 
@@ -362,7 +385,7 @@ knitr::kable(comparison, align = "lrr",
 ## Why is it common to see large R² values in microbiome research - even when the true effect is minimal?
 
  <div style="font-size: 1.2em;">
-♦️ Even when there is actually no association between a covariate and the microbiome (no-association null hypothesis), PERMANOVA R² follows a **Beta distribution
+♦️ Even when there is actually no association between a covariate and the microbiome (no-association null hypothesis), PERMANOVA R² has a null distribution centered above zero, and in the Euclidan-Gaussian case, follows a **Beta distribution
 centered above zero**:
 </div>
 
@@ -524,11 +547,12 @@ ggplot(data.frame(R2 = null_r2), aes(x = R2)) +
 
  <div style="font-size: 1.2em;">
 ♦️`PERMANOVA_repeat_measures()` with `center_R2 = TRUE` subtracts the mean
-null R² estimated from the permutation distribution, giving an effect size
-centered at zero under the null:
+null R² estimated from the design-respecting permutations, giving an effect size
+centered at zero under the null. (Under unrestricted permutation, this null mean
+is exactly $\frac{g-1}{N-1}$ for any dissimilarity.)
 </div>
 
-$$\tilde{R}^2 = R^2 - \frac{g-1}{N-1}$$
+$$\tilde{R}^2 = R^2 - \overline{R^2_{\text{perm}}}$$
 
 ```{r centered-r2, cache=TRUE}
 set.seed(1234)
@@ -770,15 +794,14 @@ ggplot(components, aes(x = Component, y = Value, fill = Component)) +
 ```
 Do you have longitudinal / clustered microbiome data?
 │
-├─ Is your covariate INVARIANT within subject? (the function will figure 
-this out for you automatically)
+├─ Is your covariate INVARIANT within subject?
 │   (e.g. sex, delivery mode, genotype, treatment arm)
-│   └─→ PERMANOVA_repeat_measures()   ← between-block permutations
+│   ├─→ Equal samples per subject: adonis2 + how(plots = Plots(strata = subject))
+│   └─→ Any design: PERMANOVA_repeat_measures()   ← between-subject permutations
 │
-└─ Is your covariate VARIANT within subject? (the function will figure 
-this out for you automatically)
+└─ Is your covariate VARIANT within subject?
     (e.g. diet, medication use)
-    └─→ PERMANOVA_repeat_measures()   ← within-block permutations
+    └─→ adonis2 + how(blocks = subject), or PERMANOVA_repeat_measures() ← within-subject permutations
 
 Do you want an interpretable effect size?
 └─→ hajek_repeat_measures()
@@ -795,9 +818,12 @@ Do you want a null-corrected variance summary?
 # Take-Home Messages
 
  <div style="font-size: 1.2em;">
-🥇 1. **adonis2 alone is not valid for repeated-measures data.** Even adding
-   subject as a covariate does not fix the permutation scheme for invariant
-   covariates — false positive rates can exceed 70% on HMP2 data.
+🥇 1. **Permutations must respect repeated-measures structure.** Unrestricted
+   permutations, or adding subject as a covariate, give false positive rates above
+   70% for subject-level covariates on HMP2 data. `adonis2` handles this with
+   `permute` designs when subjects are balanced (or the covariate varies within
+   subject); `PERMANOVA_repeat_measures()` chooses the design automatically and
+   also handles unbalanced designs.
 
 🥈 2. **PERMANOVA R² is upwardly inflated under the null.** A significant 
 positive R² does not necessarily imply a real effect. Use null-centered R² or 
@@ -812,4 +838,3 @@ the Hájek estimator instead.
 </div>
 
 ---
-
