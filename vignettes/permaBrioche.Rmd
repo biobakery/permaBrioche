@@ -111,13 +111,39 @@ dist_bc <- vegdist(bugs, method = "bray")
 
 # 1. Repeated‑measures PERMANOVA
 
-## Why not vanilla `adonis2()`?
+## Repeated measures with `adonis2()` and with permaBrioche
 
-Standard PERMANOVA assumes **independent samples**.
-In longitudinal or clustered studies, samples from the same subject
-may be strongly correlated.
+Standard PERMANOVA assumes **exchangeable samples**. In longitudinal or clustered
+studies, samples from the same subject are correlated, so permuting labels freely
+across all samples (the default in `adonis2()`) can produce false positives.
 
-Naively permuting labels across samples can produce false positives (incorrectly low p-values).
+`adonis2()` already supports restricted permutations through the **permute**
+package, and these are the right tools whenever they apply:
+
+```{r}
+# Variant covariate (changes within subject): permute within subjects
+h_within <- how(blocks = meta$subject, nperm = 999)
+# adonis2(dist_bc ~ variant_covariate, data = meta, permutations = h_within)
+
+# Invariant covariate (constant within subject): permute whole subjects
+h_whole <- how(plots  = Plots(strata = meta$subject, type = "free"),
+               within = Within(type = "none"), nperm = 999)
+```
+
+Whole-subject permutation requires every subject to contribute the **same number
+of samples**. In this dataset, as in most longitudinal studies, they do not:
+
+```{r}
+table(table(meta$subject))  # number of subjects with each sample count
+```
+
+```{r, error = TRUE}
+adonis2(dist_bc ~ exposure, data = meta, permutations = h_whole)
+```
+
+`PERMANOVA_repeat_measures()` uses the same within-subject restriction for variant
+covariates, extends between-subject permutation to **unbalanced designs**, and
+chooses the appropriate scheme automatically from the data.
 
 ***
 
@@ -152,7 +178,7 @@ The output mirrors `adonis2()`:
 
 *   `F` and `Pr(>F)` test whether the exposure is associated
     with multivariate composition.
-*   The p‑value is valid **under repeated measures**.
+*   The p-value accounts for repeated measures, assuming subjects (for invariant covariates) or a subject’s samples (for variant covariates) are exchangeable under the null.
 
 Use this function whenever a subject contributes multiple samples.
 
@@ -200,12 +226,14 @@ res_perm_centered
 *   `R2_centered` – adjusted effect size
 *   `Pr(>F)` – same hypothesis test
 
-### Note on Euclidean case
+### Note on the analytical form
 
-If the distance matrix is computed using Euclidean distance, the null-centering adjustment
-has an analytical form. Instead of using the estimation from the above function, it can be simply calculated as $R^2_{centered} = R^2_{original} - \frac{g-1}{N-1}$,
-where $R^2_{original}$ is the unadjusted estimate (obtained from running adonis2, for example), $g$ is the number of levels of the exposure variable (which is 2 for a binary exposure), and $N$ is the 
-total number of samples.
+Under **unrestricted** permutation, the null mean of $R^2$ is exactly
+$\frac{g-1}{N-1}$ for any dissimilarity, so
+$R^2_{centered} = R^2 - \frac{g-1}{N-1}$, where $g$ is the number of levels of the
+exposure and $N$ the total number of samples. Under the **restricted** permutations
+used for repeated measures, the null mean generally differs from this value, so use
+`center_R2 = TRUE`, which estimates it from the design-respecting permutations.
 
 ***
 
@@ -220,7 +248,7 @@ The Hajek estimator answers:
 > *On average, how far does exposure move samples away from
 > a control centroid, in units of the chosen distance metric?*
 
-This new effect size is very cleanly interpretable.
+This new effect size is directly interpretable.
 
 ***
 

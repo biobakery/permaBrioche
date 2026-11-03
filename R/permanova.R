@@ -75,7 +75,7 @@
 #'   row.names = paste0("id", seq_len(N))
 #' )
 #'
-#' mat <- matrix(rnorm(N * 5), nrow = N,
+#' mat <- matrix(rexp(N * 5), nrow = N,
 #'               dimnames = list(rownames(meta), NULL))
 #'
 #' D <- vegan::vegdist(mat, method = "bray")
@@ -272,7 +272,7 @@ PERMANOVA_repeat_measures <- function(formula,
   heading <- sprintf(paste(
     "Permutation test for adonis under reduced model",
     "%s",
-    "Permutation: blocked by %s",
+    "Permutation: within subjects for variant, between subjects for invariant covariates; blocking variable: %s",
     "Number of permutations: %d",
     sep = "\n"),
     by_label, blocking_variable, permutations

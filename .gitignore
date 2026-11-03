@@ -6,3 +6,6 @@ inst/doc/
 permabrioche.BiocCheck/
 /doc/
 /Meta/
+.DS_Store
+man/*_cache/
+man/*_files/
