@@ -13,7 +13,7 @@ hajek_repeat_measures_loc_and_disp(
   split_ratio = 0.5,
   numerical_metadata,
   bugs,
-  method = "bray",
+  method = "euclidean",
   covariate_name
 )
 }
@@ -34,7 +34,8 @@ hajek_repeat_measures_loc_and_disp(
 
 \item{bugs}{Matrix/data.frame of features, rows=samples, cols=features.}
 
-\item{method}{"bray" (default) or "euclidean" for the Y outcome.}
+\item{method}{\code{"euclidean"} (default) or \code{"bray"} for the outcome \eqn{Y};
+the location--dispersion decomposition is exact only for Euclidean distance.}
 
 \item{covariate_name}{Character; binary covariate used to form groups.}
 }

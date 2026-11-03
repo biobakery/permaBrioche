@@ -71,7 +71,7 @@ bundled with the package.
 
 # Installation
 
-```{r, results='hide'}
+```{r, results='hide', eval=Sys.getenv("PERMABRIOCHE_LOCAL") != "true"}
 devtools::install_github("biobakery/permabrioche", force = TRUE)
 ```
 

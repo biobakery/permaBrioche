@@ -541,7 +541,8 @@ hajek_repeat_measures_core <- function(D,
 #' @param split_ratio Proportion of subjects in training (default 0.5).
 #' @param numerical_metadata Unused (kept for API symmetry).
 #' @param bugs Matrix/data.frame of features, rows=samples, cols=features.
-#' @param method "bray" (default) or "euclidean" for the Y outcome.
+#' @param method \code{"euclidean"} (default) or \code{"bray"} for the outcome \eqn{Y};
+#'   the location--dispersion decomposition is exact only for Euclidean distance.
 #' @param covariate_name Character; binary covariate used to form groups.
 #'
 #' @return A list with

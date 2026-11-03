@@ -98,7 +98,7 @@ meta <- data.frame(
   row.names = paste0("id", seq_len(N))
 )
 
-mat <- matrix(rnorm(N * 5), nrow = N,
+mat <- matrix(rexp(N * 5), nrow = N,
               dimnames = list(rownames(meta), NULL))
 
 D <- vegan::vegdist(mat, method = "bray")
